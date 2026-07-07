@@ -10,3 +10,9 @@ add_executable(llm_inference
     src/main.cpp
     src/tokenizer.cpp
 )
+
+add_custom_target(run
+    COMMAND $<TARGET_FILE:llm_inference>
+    DEPENDS llm_inference
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
