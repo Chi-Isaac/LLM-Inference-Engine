@@ -28,7 +28,7 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
 
     while (true) {
         float score = 0.0f;
-        std::int32_t len = 0;
+        std::uint32_t len = 0;
 
         input_file.read(reinterpret_cast<char*>(&score), sizeof(score));
         if (!input_file) {
@@ -71,4 +71,13 @@ std::size_t Tokenizer::size() const {
 
 int Tokenizer::max_token_length() const {
     return max_token_length_;
+}
+
+std::optional<std::size_t> Tokenizer::find_token(const std::string& text) const {
+    for (std::size_t i = 0; i < vocab_.size(); ++i) {
+        if (vocab_[i].text == text) {
+            return i;
+        }
+    }
+    return std::nullopt;
 }

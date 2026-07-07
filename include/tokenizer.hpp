@@ -4,10 +4,11 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <optional>
 
 struct Token {
     std::string text;
-    std::int32_t len;
+    std::uint32_t len;
     float score;
 };
 
@@ -20,6 +21,8 @@ public:
 
     std::size_t size() const;
     int max_token_length() const;
+
+    std::optional<std::size_t> find_token(const std::string& text) const;
 
 private:
     int max_token_length_ = 0;
