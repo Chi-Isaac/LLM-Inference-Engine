@@ -59,6 +59,8 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
         }
         // Stores token in vocabulary
         vocab_.push_back(Token{std::move(text), len, score});
+        // Insert token into trie
+        insert_token(vocab_.back().text, vocab_.size() - 1);
     }
 
     return true;
@@ -75,6 +77,62 @@ std::string Tokenizer::decode(std::size_t id) const {
     return token_at(id).text;
 }
 
+std::optional<std::size_t> Tokenizer::find_token(const std::string& text) const {
+    const TrieNode* curr = &root_;
+    for (char c : text) {
+        auto it = curr->children.find(c);
+        if (it == curr->children.end()) {
+            return std::nullopt; // Token not found
+        }
+        curr = it->second.get();
+    }
+    if (curr->token_id.has_value()) {
+        return curr->token_id; // Token found
+    }
+    return std::nullopt; // Token not found
+}
+
+// Walks along trie from start pos until no more matches can be made and returns if any match made
+std::optional<std::pair<std::size_t, std::size_t>> Tokenizer::longest_match(const std::string& text, std::size_t start) const {
+    const TrieNode* curr = &root_;
+    std::optional<std::size_t> last_token_id;
+    std::size_t last_token_length = 0;
+    
+    for (std::size_t i = start; i < text.size(); ++i) {
+        char c = text[i];
+        auto it = curr->children.find(c);
+        if (it == curr->children.end()) {
+            break; // No further match
+        }
+        curr = it->second.get();
+        if (curr->token_id.has_value()) {
+            last_token_id = curr->token_id;
+            last_token_length = i - start + 1; // Update length of the last matched token
+        }
+    }
+
+    if (last_token_id.has_value()) {
+        return std::make_pair(last_token_id.value(), last_token_length);
+    }
+    return std::nullopt; // No match found
+}
+
+// Walks through input text, finds longest matching tokens and returns IDs
+std::vector<std::size_t> Tokenizer::encode(const std::string& text) const {
+    std::vector<std::size_t> result;
+    std::size_t pos = 0;
+    while (pos < text.size()) {
+        auto match = longest_match(text, pos);
+        if (!match.has_value()) {
+            throw std::runtime_error("tokenizer: no matching token at position " + std::to_string(pos));
+        }
+        auto [token_id, token_length] = match.value();
+        result.push_back(token_id);
+        pos += token_length; // Move position forward by the length of the matched token
+    }
+    return result;
+}
+
 std::size_t Tokenizer::size() const {
     return vocab_.size();
 }
@@ -83,12 +141,14 @@ int Tokenizer::max_token_length() const {
     return max_token_length_;
 }
 
-// Linear search for the token in the vocabulary
-std::optional<std::size_t> Tokenizer::find_token(const std::string& text) const {
-    for (std::size_t i = 0; i < vocab_.size(); ++i) {
-        if (vocab_[i].text == text) {
-            return i;
+void Tokenizer::insert_token(const std::string& text, std::size_t id) {
+    TrieNode* curr = &root_;
+    for (char c : text) {
+        auto& child = curr->children[c];
+        if (!child) {
+            child = std::make_unique<TrieNode>();
         }
+        curr = child.get();
     }
-    return std::nullopt;
+    curr->token_id = id;
 }
