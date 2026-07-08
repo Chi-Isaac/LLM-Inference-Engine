@@ -152,3 +152,38 @@ void Tokenizer::insert_token(const std::string& text, std::size_t id) {
     }
     curr->token_id = id;
 }
+
+bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
+    if (tokens.size() < 2) {
+        return false; // Not enough tokens to merge
+    }
+
+    float best_score = -std::numeric_limits<float>::infinity();
+    std::size_t best_id = -1;
+    std::size_t best_pos = -1;
+    bool found = false;
+
+    for (std::size_t i = 0; i < tokens.size() - 1; ++i) {
+        std::string merged = vocab_[tokens[i]].text + vocab_[tokens[i + 1]].text;
+        auto id = find_token(merged);
+        if (!id) {
+            continue; // Merged token not found
+        }
+        
+        float score = vocab_[id.value()].score;
+        if (score > best_score || !found) {
+            found = true;
+            best_score = score;
+            best_id = id.value();
+            best_pos = i;
+        }
+    }
+
+    if (!found) {
+        return false; // No mergeable pair found
+    }
+
+    tokens[best_pos] = best_id; // Replace first token with merged
+    tokens.erase(tokens.begin() + best_pos + 1); // Remove the second original token
+    return true; // Merge successful
+}

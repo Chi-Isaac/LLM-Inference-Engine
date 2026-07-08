@@ -40,5 +40,6 @@ private:
     TrieNode root_;
 
     void insert_token(const std::string& text, std::size_t id);
+    bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const;
 }
 ;
