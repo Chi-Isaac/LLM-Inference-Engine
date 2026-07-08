@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdio.h>
 
 void load_model(struct Config *config, struct TransformerWeights *weights, void *data, size_t file_size) {
     memcpy(config, data, sizeof(struct Config));
@@ -59,7 +60,7 @@ void load_model(struct Config *config, struct TransformerWeights *weights, void 
 }
 
 int main(void) {
-    int fd = open("stories15M.bin", O_RDONLY);
+    int fd = open("data/stories15M.bin", O_RDONLY);
     if (fd < 0) {
         // handle error
         return 1;
@@ -85,6 +86,21 @@ int main(void) {
     close(fd);
     
     load_model(&config, &weights, data, file_size);
+    printf("--- Model Configuration ---\n");
+    printf("dim: %d\n", config.dim);
+    printf("hidden_dim: %d\n", config.hidden_dim);
+    printf("n_layers: %d\n", config.n_layers);
+    printf("n_heads: %d\n", config.n_heads);
+    printf("n_kv_heads: %d\n", config.n_kv_heads);
+    printf("vocab_size: %d\n", config.vocab_size);
+    printf("seq_len: %d\n", config.seq_len);
 
+    // Also test that the wcls tied weights logic worked:
+    printf("\n--- Weight Pointers ---\n");
+    if (weights.wcls == weights.token_embedding_table) {
+        printf("Classifier weights are TIED to the embedding table.\n");
+    } else {
+        printf("Classifier weights are SEPARATE.\n");
+    }
     return 0;
 }
