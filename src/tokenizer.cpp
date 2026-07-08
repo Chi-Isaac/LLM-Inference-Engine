@@ -4,6 +4,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <utility>
+#include <limits>
 
 // Helper function to read binary data from bianry stream safely
 // Throws std::runtime_error if reading fails
