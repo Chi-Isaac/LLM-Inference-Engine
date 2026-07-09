@@ -35,7 +35,7 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
     // While loop until EOF or failure
     while (true) {
         float score = 0.0f;
-        std::uint32_t len = 0;
+        std::int32_t len = 0;
 
         // Attempt to read score, breaks if EOF is reached
         input_file.read(reinterpret_cast<char*>(&score), sizeof(score));
@@ -59,7 +59,7 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
             }
         }
         // Stores token in vocabulary
-        vocab_.push_back(Token{std::move(text), len, score});
+        vocab_.push_back(Token{std::move(text), static_cast<uint32_t>(len), score});
         // Insert token into trie
         insert_token(vocab_.back().text, vocab_.size() - 1);
     }
@@ -118,39 +118,22 @@ std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& t
     return std::nullopt; // No match found
 }
 
-// Greedy approach encoding
-// Walks through input text, finds longest matching tokens and returns IDs
-/*
-std::vector<int> Tokenizer::encode(const std::string& text) const {
-    std::vector<int> result;
-    int pos = 0;
-    while (pos < text.size()) {
-        auto match = longest_match(text, pos);
-        if (!match.has_value()) {
-            throw std::runtime_error("tokenizer: no matching token at position " + std::to_string(pos));
-        }
-        auto [token_id, token_length] = match.value();
-        result.push_back(token_id);
-        pos += token_length; // Move position forward by the length of the matched token
-    }
-    return result;
-}
-*/
 std::vector<int> Tokenizer::encode(const std::string& text) const {
     std::vector<int> result;
     for (char c : text) {
-        auto c_id = longest_match(text, 0);
+        std::string single_char(1, c);
+        // Find the specific ID for this single character
+        auto c_id = find_token(single_char); 
         if (!c_id.has_value()) {
-            throw std::runtime_error("tokenizer: no matching token for character " + std::to_string(c));
-        }        
-        auto [token_id, token_length] = c_id.value();
-        result.push_back(token_id);
+            throw std::runtime_error("tokenizer: no matching base token for character: " + single_char);
+        }  
+        result.push_back(c_id.value());
     }
-    bool merge_done = false;
-    while (!merge_done) {
+    bool merge_done = true;
+    while (merge_done) {
         merge_done = merge_best_pair(result);
     }
-
+    return result;
 }
 
 int Tokenizer::size() const {
