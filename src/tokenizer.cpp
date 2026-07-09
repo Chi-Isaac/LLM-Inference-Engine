@@ -120,6 +120,7 @@ std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& t
 
 // Greedy approach encoding
 // Walks through input text, finds longest matching tokens and returns IDs
+/*
 std::vector<int> Tokenizer::encode(const std::string& text) const {
     std::vector<int> result;
     int pos = 0;
@@ -133,6 +134,23 @@ std::vector<int> Tokenizer::encode(const std::string& text) const {
         pos += token_length; // Move position forward by the length of the matched token
     }
     return result;
+}
+*/
+std::vector<int> Tokenizer::encode(const std::string& text) const {
+    std::vector<int> result;
+    for (char c : text) {
+        auto c_id = longest_match(text, 0);
+        if (!c_id.has_value()) {
+            throw std::runtime_error("tokenizer: no matching token for character " + std::to_string(c));
+        }        
+        auto [token_id, token_length] = c_id.value();
+        result.push_back(token_id);
+    }
+    bool merge_done = false;
+    while (!merge_done) {
+        merge_done = merge_best_pair(result);
+    }
+
 }
 
 int Tokenizer::size() const {
