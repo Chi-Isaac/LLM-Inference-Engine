@@ -1,5 +1,4 @@
 #include "tokenizer.hpp"
-
 #include <cstdint>
 #include <fstream>
 #include <stdexcept>
