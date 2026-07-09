@@ -28,6 +28,7 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
     // Reset existing tokenizer state
     vocab_.clear();
     max_token_length_ = 0;
+    root_ = TrieNode();
 
     // Read the maximum token length from the file
     read_binary(input_file, max_token_length_);
@@ -50,7 +51,7 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
         }
 
         // Allocate str buffer and read
-        std::string text(static_cast<std::size_t>(len), '\0');
+        std::string text(static_cast<int>(len), '\0');
         // Check token bytes are non-empty
         if (len > 0) {
             input_file.read(&text[0], len);
@@ -67,18 +68,18 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
     return true;
 }
 
-const Token& Tokenizer::token_at(std::size_t id) const {
+const Token& Tokenizer::token_at(int id) const {
     if (id >= vocab_.size()) {
         throw std::out_of_range("tokenizer: token id out of range");
     }
     return vocab_[id];
 }
 
-std::string Tokenizer::decode(std::size_t id) const {
+std::string Tokenizer::decode(int id) const {
     return token_at(id).text;
 }
 
-std::optional<std::size_t> Tokenizer::find_token(const std::string& text) const {
+std::optional<int> Tokenizer::find_token(const std::string& text) const {
     const TrieNode* curr = &root_;
     for (char c : text) {
         auto it = curr->children.find(c);
@@ -94,12 +95,12 @@ std::optional<std::size_t> Tokenizer::find_token(const std::string& text) const 
 }
 
 // Walks along trie from start pos until no more matches can be made and returns if any match made
-std::optional<std::pair<std::size_t, std::size_t>> Tokenizer::longest_match(const std::string& text, std::size_t start) const {
+std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& text, int start) const {
     const TrieNode* curr = &root_;
-    std::optional<std::size_t> last_token_id;
-    std::size_t last_token_length = 0;
+    std::optional<int> last_token_id;
+    int last_token_length = 0;
     
-    for (std::size_t i = start; i < text.size(); ++i) {
+    for (int i = start; i < text.size(); ++i) {
         char c = text[i];
         auto it = curr->children.find(c);
         if (it == curr->children.end()) {
@@ -118,10 +119,11 @@ std::optional<std::pair<std::size_t, std::size_t>> Tokenizer::longest_match(cons
     return std::nullopt; // No match found
 }
 
+// Greedy approach encoding
 // Walks through input text, finds longest matching tokens and returns IDs
-std::vector<std::size_t> Tokenizer::encode(const std::string& text) const {
-    std::vector<std::size_t> result;
-    std::size_t pos = 0;
+std::vector<int> Tokenizer::encode(const std::string& text) const {
+    std::vector<int> result;
+    int pos = 0;
     while (pos < text.size()) {
         auto match = longest_match(text, pos);
         if (!match.has_value()) {
@@ -134,7 +136,7 @@ std::vector<std::size_t> Tokenizer::encode(const std::string& text) const {
     return result;
 }
 
-std::size_t Tokenizer::size() const {
+int Tokenizer::size() const {
     return vocab_.size();
 }
 
@@ -142,7 +144,7 @@ int Tokenizer::max_token_length() const {
     return max_token_length_;
 }
 
-void Tokenizer::insert_token(const std::string& text, std::size_t id) {
+void Tokenizer::insert_token(const std::string& text, int id) {
     TrieNode* curr = &root_;
     for (char c : text) {
         auto& child = curr->children[c];
@@ -160,11 +162,11 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
     }
 
     float best_score = -std::numeric_limits<float>::infinity();
-    std::size_t best_id = -1;
-    std::size_t best_pos = -1;
+    int best_id = -1;
+    int best_pos = -1;
     bool found = false;
 
-    for (std::size_t i = 0; i < tokens.size() - 1; ++i) {
+    for (int i = 0; i < tokens.size() - 1; ++i) {
         std::string merged = vocab_[tokens[i]].text + vocab_[tokens[i + 1]].text;
         auto id = find_token(merged);
         if (!id) {
