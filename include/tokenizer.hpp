@@ -20,21 +20,21 @@ struct Token {
 struct TrieNode {
     // Children nodes stored in hashmap
     std::unordered_map<char, std::unique_ptr<TrieNode>> children;
-    std::optional<std::int> token_id;
+    std::optional<int> token_id;
 };
 
 class Tokenizer {
 public:
     bool load_from_file(const std::string& file_path);
 
-    const Token& token_at(std::int id) const;
-    std::string decode(std::int id) const;
+    const Token& token_at(int id) const;
+    std::string decode(int id) const;
 
-    std::optional<std::int> find_token(const std::string& text) const;
-    std::optional<std::pair<std::int, std::int>> longest_match(const std::string& text, std::int start) const;
-    std::vector<int> encode(const std::string& text);
+    std::optional<int> find_token(const std::string& text) const;
+    std::optional<std::pair<int, int>> longest_match(const std::string& text, int start) const;
+    std::vector<int> encode(const std::string& text) const;
 
-    std::int size() const;
+    int size() const;
     int max_token_length() const;
 
 private:
@@ -42,7 +42,7 @@ private:
     std::vector<Token> vocab_;
     TrieNode root_;
 
-    void insert_token(const std::string& text, std::int id);
+    void insert_token(const std::string& text, int id);
     bool merge_best_pair(std::vector<int>& tokens) const;
 }
 ;
