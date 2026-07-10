@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <iostream>
 #include <string>
+
 // Helper function to read binary data from bianry stream safely
 // Throws std::runtime_error if reading fails
 namespace {
@@ -122,22 +123,48 @@ std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& t
 
 std::vector<int> Tokenizer::encode(const std::string& text) const {
     std::vector<int> result;
-    result.push_back(1);
-    for (char c : text) {
-        std::string single_char(1, c);
+    result.push_back(1); // Start token <s> has ID 1
+
+    std::size_t i = 0;
+    while (i < text.size()) {
+        std::size_t start = i;
+        char b = text[i++]; // First byte of UTF-8 char or ASCII char
+
+        int num_cont_bytes = 0;
+        if ((b & UTF8_ASCII_MASK) == ASCII_PREFIX) {
+            num_cont_bytes = 0; // ASCII character
+        } else if ((b & UTF8_LEAD_2_BYTE_MASK) == UTF8_LEAD_2_BYTE_PREFIX) {
+            num_cont_bytes = 1; // 2 byte sequence
+        } else if ((b & UTF8_LEAD_3_BYTE_MASK) == UTF8_LEAD_3_BYTE_PREFIX) {
+            num_cont_bytes = 2; // 3 byte sequence
+        } else if ((b & UTF8_LEAD_4_BYTE_MASK) == UTF8_LEAD_4_BYTE_PREFIX) {
+            num_cont_bytes = 3; // 4 byte sequence
+        } else {
+            throw std::runtime_error("tokenizer: invalid UTF-8 start byte encountered");
+        }
+
+        while (0 < num_cont_bytes && i < text.size()) {
+            char c = text[i++];
+            if ((c & UTF8_CONTINUATION_MASK) != UTF8_CONTINUATION_PREFIX) {
+                throw std::runtime_error("tokenizer: invalid UTF-8 continuation byte encountered");
+            }
+            num_cont_bytes--;
+        }
+
+        std::string single_char = text.substr(start, i - start);
         // Find the specific ID for this single character
-        auto c_id = find_token(single_char); 
+        auto c_id = find_token(single_char);
         if (!c_id.has_value()) {
             throw std::runtime_error("tokenizer: no matching base token for character: " + single_char);
         }  
         result.push_back(c_id.value());
     }
-    bool merge_done = true;
-    while (merge_done) {
-        merge_done = merge_best_pair(result);
+    
+    while (merge_best_pair(result)) {
+        // Merge until cannot merge
     }
     result.erase(std::remove(result.begin(), result.end(), -1), result.end()); // move all dummy ids to the end, then erases them
-    result.push_back(2);
+    result.push_back(2); // End token </s> has ID 2
     return result;
 }
 
