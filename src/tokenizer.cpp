@@ -70,7 +70,7 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
 }
 
 const Token& Tokenizer::token_at(int id) const {
-    if (id >= vocab_.size()) {
+    if (id < 0 || static_cast<std::vector<Token>::size_type>(id) >= vocab_.size()) {
         throw std::out_of_range("tokenizer: token id out of range");
     }
     return vocab_[id];
@@ -101,7 +101,7 @@ std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& t
     std::optional<int> last_token_id;
     int last_token_length = 0;
     
-    for (int i = start; i < text.size(); ++i) {
+    for (std::vector<int>::size_type i = start; i < text.size(); ++i) {
         char c = text[i];
         auto it = curr->children.find(c);
         if (it == curr->children.end()) {
@@ -161,22 +161,22 @@ void Tokenizer::insert_token(const std::string& text, int id) {
     curr->token_id = id;
 }
 bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
-
+    // Check if enough tokens to merge
     if (tokens.size() < 2) {
         return false; 
     }
 
     float best_score = -std::numeric_limits<float>::infinity();
     int best_id = -1;
-    int best_pos = -1;
-    int best_right_pos = -1; 
+    std::vector<int>::size_type best_pos = -1;
+    std::vector<int>::size_type best_right_pos = -1; 
     bool found = false;
 
-    for (int i = 0; i < tokens.size() - 1; ++i) {
+    for (std::vector<int>::size_type i = 0; i < tokens.size() - 1; ++i) {
         if (tokens[i] == -1) continue; // Skip any already-merged tokens
 
         // Find the next non-merged valid token
-        int right = i + 1;
+        std::vector<int>::size_type right = i + 1;
         while (right < tokens.size() && tokens[right] == -1) {
             right++;
         }
