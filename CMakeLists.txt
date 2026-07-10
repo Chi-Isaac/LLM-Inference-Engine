@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include_directories(include)
 
 add_executable(llm_inference
-    src/main.cpp
+    src/model.cpp
     src/tokenizer.cpp
 )
 

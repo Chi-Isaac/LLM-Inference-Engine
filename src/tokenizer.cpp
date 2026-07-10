@@ -4,7 +4,9 @@
 #include <stdexcept>
 #include <utility>
 #include <limits>
-
+#include <algorithm>
+#include <iostream>
+#include <string>
 // Helper function to read binary data from bianry stream safely
 // Throws std::runtime_error if reading fails
 namespace {
@@ -120,6 +122,7 @@ std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& t
 
 std::vector<int> Tokenizer::encode(const std::string& text) const {
     std::vector<int> result;
+    result.push_back(1);
     for (char c : text) {
         std::string single_char(1, c);
         // Find the specific ID for this single character
@@ -133,6 +136,8 @@ std::vector<int> Tokenizer::encode(const std::string& text) const {
     while (merge_done) {
         merge_done = merge_best_pair(result);
     }
+    result.erase(std::remove(result.begin(), result.end(), -1), result.end()); // move all dummy ids to the end, then erases them
+    result.push_back(2);
     return result;
 }
 
@@ -155,22 +160,36 @@ void Tokenizer::insert_token(const std::string& text, int id) {
     }
     curr->token_id = id;
 }
-
 bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
+
     if (tokens.size() < 2) {
-        return false; // Not enough tokens to merge
+        return false; 
     }
 
     float best_score = -std::numeric_limits<float>::infinity();
     int best_id = -1;
     int best_pos = -1;
+    int best_right_pos = -1; 
     bool found = false;
 
     for (int i = 0; i < tokens.size() - 1; ++i) {
-        std::string merged = vocab_[tokens[i]].text + vocab_[tokens[i + 1]].text;
+        if (tokens[i] == -1) continue; // Skip any already-merged tokens
+
+        // Find the next non-merged valid token
+        int right = i + 1;
+        while (right < tokens.size() && tokens[right] == -1) {
+            right++;
+        }
+        
+        // If we hit the end of the vector looking for a right token, stop
+        if (right == tokens.size()) {
+            break; 
+        }
+
+        std::string merged = vocab_[tokens[i]].text + vocab_[tokens[right]].text;
         auto id = find_token(merged);
         if (!id) {
-            continue; // Merged token not found
+            continue; 
         }
         
         float score = vocab_[id.value()].score;
@@ -179,6 +198,7 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
             best_score = score;
             best_id = id.value();
             best_pos = i;
+            best_right_pos = right; // Store the exact index of the right token!
         }
     }
 
@@ -186,7 +206,52 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
         return false; // No mergeable pair found
     }
 
-    tokens[best_pos] = best_id; // Replace first token with merged
-    tokens.erase(tokens.begin() + best_pos + 1); // Remove the second original token
+    tokens[best_pos] = best_id;      // 1. Replace first token with merged ID
+    tokens[best_right_pos] = -1;     // 2. Mark the second token as deleted
+
     return true; // Merge successful
+}
+
+static void print_tokens(const std::vector<int>& tokens) {
+    std::cout << "Token IDs:";
+    for (int id : tokens) {
+        std::cout << ' ' << id;
+    }
+    std::cout << '\n';
+}
+
+static void print_pieces(const Tokenizer& tokenizer, const std::vector<int>& tokens) {
+    std::cout << "Pieces:\n";
+    for (int id : tokens) {
+        const Token& tok = tokenizer.token_at(id);
+        std::cout << "[" << id << "] \"" << tok.text << "\"\n";
+    }
+}
+
+int main(int argc, char* argv[]) {
+    try {
+        if (argc < 3) {
+            std::cerr << "Usage: " << argv[0] << " <tokenizer.bin> <prompt>\n";
+            return 1;
+        }
+
+        std::string tokenizer_path = argv[1];
+        std::string prompt = argv[2];
+
+        Tokenizer tokenizer;
+        if (!tokenizer.load_from_file(tokenizer_path)) {
+            std::cerr << "Failed to load tokenizer file: " << tokenizer_path << '\n';
+            return 1;
+        }
+
+        std::vector<int> tokens = tokenizer.encode(prompt);
+
+        print_tokens(tokens);
+        print_pieces(tokenizer, tokens);
+
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << '\n';
+        return 1;
+    }
 }
