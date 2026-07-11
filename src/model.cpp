@@ -58,7 +58,7 @@ void load_model(struct Config *config, struct TransformerWeights *weights, void 
         weights->wcls = weights->token_embedding_table;
     }
 }
-
+/*
 int main(void) {
     int fd = open("data/stories15M.bin", O_RDONLY);
     if (fd < 0) {
@@ -104,3 +104,4 @@ int main(void) {
     }
     return 0;
 }
+    */
