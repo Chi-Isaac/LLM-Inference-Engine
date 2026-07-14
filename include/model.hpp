@@ -22,3 +22,8 @@ struct TransformerWeights {
     float *rms_final_weight;
     float *wcls;
 };
+
+typedef struct Model {
+    struct Config config;
+    struct TransformerWeights weights;
+} Model;
