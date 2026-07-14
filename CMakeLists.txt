@@ -9,6 +9,7 @@ include_directories(include)
 add_executable(llm_inference
     src/model.cpp
     src/tokenizer.cpp
+    src/transformer.cpp
 )
 
 add_custom_target(run
