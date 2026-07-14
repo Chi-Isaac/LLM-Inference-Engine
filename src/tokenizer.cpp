@@ -123,7 +123,7 @@ std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& t
 
 std::vector<int> Tokenizer::encode(const std::string& text) const {
     std::vector<int> result;
-    result.push_back(1); // Start token <s> has ID 1
+    result.push_back(start_id); // Start token <s> has ID 1
 
     std::size_t i = 0;
     while (i < text.size()) {
@@ -164,7 +164,7 @@ std::vector<int> Tokenizer::encode(const std::string& text) const {
         // Merge until cannot merge
     }
     result.erase(std::remove(result.begin(), result.end(), -1), result.end()); // move all dummy ids to the end, then erases them
-    result.push_back(2); // End token </s> has ID 2
+
     return result;
 }
 
