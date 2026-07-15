@@ -76,6 +76,11 @@ void load_model(Model *model, void *data, size_t file_size) {
     } else {
         model->weights.wcls = model->weights.token_embedding_table;
     }
+
+    // Instantiate KV cache
+    int kv_cache_size = model->config.n_layers * model->config.n_kv_heads * model->config.seq_len * head_size;
+    model->kv_cache.key_cache.resize(kv_cache_size);
+    model->kv_cache.value_cache.resize(kv_cache_size);
     build_rpe_cache(model);
 }
 /*

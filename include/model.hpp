@@ -30,8 +30,14 @@ struct RpeCache {
     std::vector<std::vector<float>> cos_cache;
 };
 
+struct KVCache {
+    std::vector<std::vector<float>> key_cache;
+    std::vector<std::vector<float>> value_cache;
+};
+
 typedef struct {
     struct Config config;
     struct TransformerWeights weights;
     struct RpeCache rpe_cache;
+    struct KVCache kv_cache;
 } Model;
