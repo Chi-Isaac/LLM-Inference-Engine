@@ -82,7 +82,7 @@ void softmax(const std::vector<float>& x, int length) {
     }
 }
 
-void compute_attention(const Model& model, std::vector<float>& attn_out, const std::vector<float>& q, int curr_pos, int kv_offset) {
+void compute_attention(const Model& model, std::vector<float>& attn_out, const std::vector<float>& q, int curr_pos, int layer_offset) {
     // Calculate similarity scores
     // How many queries per key value pair
     int queries_per_group = model.config.n_heads / model.config.n_kv_heads;
@@ -94,7 +94,8 @@ void compute_attention(const Model& model, std::vector<float>& attn_out, const s
 
         std::vector<float> attn_scores(curr_pos + 1);
         for (int pos = 0; pos <= curr_pos; pos++) {
-            const float* k_head = model.kv_cache.key_cache.data() + kv_offset;
+            int k_id = layer_offset + pos * model.config.n_kv_heads * model.config.head_size + kv_head * model.config.head_size;
+            const float* k_head = model.kv_cache.key_cache.data() + k_id;
 
             float score = 0.0f;
             for (int i = 0; i < model.config.head_size; i++) {
@@ -107,6 +108,16 @@ void compute_attention(const Model& model, std::vector<float>& attn_out, const s
 
     // Use softmax to convert scores to probabilities
     softmax(attn_scores, curr_pos + 1);
+
+    // Multiply attention scores with stored values v to get single aggregated context vector
+    float* attn_out = attn_out.data() + head * model.config.head_size;
+    for (int pos = 0; pos <= curr_pos; pos++) {
+        int v_id = layer_offset + pos * model.config.n_kv_heads * model.config.head_size + kv_head * model.config.head_size;
+        const float* v_head = model.kv_cache.value_cache.data() + v_id;
+        for (int i = 0; i < model.config.head_size; i++) {
+            attn_out[i] += attn_scores[pos] * v_head[i];
+        }
+    }
 }
 
 void forward(const Model& model, const std::vector<int>& ids, int current_position) {
