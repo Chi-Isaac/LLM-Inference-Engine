@@ -52,6 +52,15 @@ std::vector<float> final_norm(const Model& model, const std::vector<float>& vect
     return rms_norm(model, vector, curr_layer, model.weights.rms_final_weight);
 }
 
+void mult_matrix(std::vector<float>& result, const std::vector<float>& x, const float *w, int rows, int cols) {
+    for (int i = 0; i < rows; i++) {
+        float value = 0.0f;
+        for (int j = 0; j < cols; j++) {
+            value += x[j] * w[i * cols + j];
+        }
+        result[i] = value;
+    }
+}
 
 void forward(const Model& model, const std::vector<int>& ids, int current_position) {
     std::vector<float> x(model.config.dim);
