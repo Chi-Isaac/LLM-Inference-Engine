@@ -56,8 +56,16 @@ std::vector<float> final_norm(const Model& model, const std::vector<float>& vect
 void forward(const Model& model, const std::vector<int>& ids, int current_position) {
     std::vector<float> x(model.config.dim);
     lookup(model, current_position, ids, x);
+
+    int dim = model.config.dim;
+    int head_size = dim / model.config.n_heads;
+
+    // Allocating QKV projection vectors
+    std::vector<float> q(dim);
+    std::vector<float> k(model.config.n_kv_heads * head_size);
+    std::vector<float> v(model.config.n_kv_heads * head_size);
+
     for (int i = 0; i < model.config.n_layers; i++) {
         // perform logic for a single layer
     }
-
 }
