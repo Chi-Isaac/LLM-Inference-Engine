@@ -164,5 +164,16 @@ void forward(const Model& model, const std::vector<int>& ids, int current_positi
         // Attention Scoring
         std::vector<float> attn_out(dim);
         compute_attention(model, attn_out, q, current_position, layer_offset);
+
+        // Attention Output and Residual Add
+        std::vector<float> wo_out(dim);
+        float *wo_layer = model.weights.wo + i * dim * dim;
+        // attn_out is multiplied by the output matrix wo
+        mult_matrix(wo_out, attn_out, wo_layer, dim, dim);
+
+        // Residual Add 1: Engine adds result back into the original x: x = x + wo_out
+        for (int j = 0; j < dim; j++) {
+            x[j] += wo_out[j];
+        }
     }
 }
