@@ -201,5 +201,10 @@ void forward(const Model& model, const std::vector<int>& ids, int current_positi
         // Multiply hb by w2 to project back to 288 dimensions
         std::vector<float> w2_out(dim);
         mult_matrix(w2_out, hb, w2_layer, dim, dim);
-    }
+
+        // Feed-Forward Residual Add
+        // Residual Add 2: Engine adds this result back into x: x = x + w2_out
+        for (int j = 0; j < dim; j++) {
+            x[j] += w2_out[j];
+        }
 }
