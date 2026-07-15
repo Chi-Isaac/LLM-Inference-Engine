@@ -25,6 +25,34 @@ std::vector<float> apply_rpe(const Model& model, const std::vector<float>& orig,
     return rotated; 
 }
 
+std::vector<float> rms_norm(const Model& model, const std::vector<float>& vector, int curr_layer, float *norm_weights) {
+    float epsilon = 1e-5f;
+    float sq_sum = 0;
+    for (int i = 0; i < model.config.dim; i++) {
+        sq_sum += vector[i] * vector[i];
+    }
+    float rms = std::sqrt(sq_sum / model.config.dim + epsilon);
+    float *gamma = norm_weights + curr_layer * model.config.dim;
+    std::vector<float> norm(model.config.dim);
+    for (int i = 0; i < model.config.dim; i++) {
+        norm[i] = vector[i] * gamma[i] / rms;
+    }
+    return norm;
+}
+
+std::vector<float> pre_att_norm(const Model& model, const std::vector<float>& vector, int curr_layer) {
+    return rms_norm(model, vector, curr_layer, model.weights.rms_att_weight);
+}
+
+std::vector<float> pre_ffn_norm(const Model& model, const std::vector<float>& vector, int curr_layer) {
+    return rms_norm(model, vector, curr_layer, model.weights.rms_ffn_weight);
+}
+
+std::vector<float> final_norm(const Model& model, const std::vector<float>& vector, int curr_layer) {
+    return rms_norm(model, vector, curr_layer, model.weights.rms_final_weight);
+}
+
+
 void forward(const Model& model, const std::vector<int>& ids, int current_position) {
     std::vector<float> x(model.config.dim);
     lookup(model, current_position, ids, x);

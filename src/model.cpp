@@ -35,7 +35,7 @@ void load_model(Model *model, void *data, size_t file_size) {
     ptr += model->config.vocab_size * model->config.dim;
 
     // Attention RMSNorm
-    model->weights.rms_att_Weight = ptr;
+    model->weights.rms_att_weight = ptr;
     ptr += model->config.n_layers * model->config.dim;
 
     // Attention Query, Key, Value weights

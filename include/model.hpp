@@ -12,7 +12,7 @@ struct Config {
 
 struct TransformerWeights {
     float *token_embedding_table;
-    float *rms_att_Weight;
+    float *rms_att_weight;
     float *wq;
     float *wk;
     float *wv;
