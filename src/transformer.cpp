@@ -62,6 +62,26 @@ void mult_matrix(std::vector<float>& result, const std::vector<float>& x, const 
     }
 }
 
+void softmax(const std::vector<float>& x, int length) {
+    float max_score = x[0];
+
+    for (int i = 1; i < length; i++) {
+        if (x[i] > max_score) {
+            max_score = x[i];
+        }
+    }
+
+    float sum = 0.0f;
+    for (int i = 0; i < length; i++) {
+        x[i] = std::exp(x[i] - max_score);
+        sum += x[i];
+    }
+
+    for (int i = 0; i < length; i++) {
+        x[i] /= sum;
+    }
+}
+
 void compute_attention(const Model& model, std::vector<float>& attn_out, const std::vector<float>& q, int curr_pos, int kv_offset) {
     // Calculate similarity scores
     // How many queries per key value pair
@@ -84,6 +104,9 @@ void compute_attention(const Model& model, std::vector<float>& attn_out, const s
             attn_scores[pos] = score;
         }
     }
+
+    // Use softmax to convert scores to probabilities
+    softmax(attn_scores, curr_pos + 1);
 }
 
 void forward(const Model& model, const std::vector<int>& ids, int current_position) {
