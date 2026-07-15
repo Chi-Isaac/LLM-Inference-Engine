@@ -5,7 +5,26 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include <cmath>
 
+void build_rpe_cache(Model *model) {
+    int num_pairs = model->config.dim / 2;
+    model->rpe_cache.sin_cache = std::vector<std::vector<float>>(model->config.seq_len, std::vector<float>(num_pairs, 0.0f));
+    model->rpe_cache.cos_cache = std::vector<std::vector<float>>(model->config.seq_len, std::vector<float>(num_pairs, 0.0f));
+    std::vector<float> theta(num_pairs);
+    for (int pair_idx = 0; pair_idx < num_pairs; pair_idx++) {
+        float exponent = -2.0f * pair_idx / static_cast<float>(model->config.dim);
+        theta[pair_idx] = std::pow(10000.0f, exponent);
+    }
+
+    for (int pos = 0; pos < model->config.seq_len; pos++) {
+        for (int pair_idx = 0; pair_idx < num_pairs; pair_idx++) {
+            float angle = pos * theta[pair_idx];
+            model->rpe_cache.sin_cache[pos][pair_idx] = std::sin(angle);
+            model->rpe_cache.cos_cache[pos][pair_idx] = std::cos(angle);
+        }
+    }
+}
 void load_model(Model *model, void *data, size_t file_size) {
     memcpy(&model->config, data, sizeof(struct Config));
     float *ptr = (float *)((char *)data + sizeof(struct Config));
@@ -57,6 +76,7 @@ void load_model(Model *model, void *data, size_t file_size) {
     } else {
         model->weights.wcls = model->weights.token_embedding_table;
     }
+    build_rpe_cache(model);
 }
 /*
 int main(void) {

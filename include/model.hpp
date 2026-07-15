@@ -1,3 +1,5 @@
+#include <vector>
+
 struct Config {
     int dim;
     int hidden_dim;
@@ -23,7 +25,13 @@ struct TransformerWeights {
     float *wcls;
 };
 
-typedef struct Model {
+struct RpeCache {
+    std::vector<std::vector<float>> sin_cache;
+    std::vector<std::vector<float>> cos_cache;
+};
+
+typedef struct {
     struct Config config;
     struct TransformerWeights weights;
+    struct RpeCache rpe_cache;
 } Model;
