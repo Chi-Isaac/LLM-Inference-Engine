@@ -91,5 +91,16 @@ void forward(const Model& model, const std::vector<int>& ids, int current_positi
         // Appply RoPE to Q and K
         q = apply_rpe(model, q, current_position);
         k = apply_rpe(model, k, current_position);
+
+        // Store K and V in KV cache
+        // Calculate offset
+        int layer_offset = i * model.config.seq_len * model.config.n_kv_heads * head_size;
+        int position_offset = current_position * model.config.n_kv_heads * head_size;
+        int kv_offset = layer_offset + position_offset;
+
+        for (int j = 0; j < model.config.n_kv_heads * head_size; j++) {
+            model.kv_cache.key_cache[kv_offset + j] = k[j];
+            model.kv_cache.value_cache[kv_offset + j] = v[j];
+        }
     }
 }
