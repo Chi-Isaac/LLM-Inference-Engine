@@ -180,27 +180,29 @@ void forward(const Model& model, const std::vector<int>& ids, int current_positi
         std::vector<float> xb_ffn = pre_ffn_norm(model, x, i);
 
         // The Feed-Forward Block (SwiGLU)
-        std::vector<float> hb(dim);
+        int hidden_dim = model.config.hidden_dim;
+
+        std::vector<float> hb(hidden_dim);
         std::vector<float> hb2(dim);
 
         // Pointers to weights in ith layer
-        float *w1_layer = model.weights.w1 + i * dim * dim;
-        float *w2_layer = model.weights.w2 + i * dim * dim;
-        float *w3_layer = model.weights.w3 + i * dim * dim;
+        float *w1_layer = model.weights.w1 + i * hidden_dim * dim;
+        float *w2_layer = model.weights.w2 + i * dim * hidden_dim;
+        float *w3_layer = model.weights.w3 + i * hidden_dim * dim;
 
         // Multiply xb by w1 and then by w3
-        mult_matrix(hb, xb_ffn, w1_layer, dim, dim);
-        mult_matrix(hb2, xb_ffn, w3_layer, dim, dim);
+        mult_matrix(hb, xb_ffn, w1_layer, hidden_dim, dim);
+        mult_matrix(hb2, xb_ffn, w3_layer, hidden_dim, dim);
 
         // Apply SiLU activation to hb
-        for (int j = 0; j < dim; j++) {
+        for (int j = 0; j < hidden_dim; j++) {
             float silu = hb[j] / (1.0f + std::exp(-hb[j]));
             hb[j] = silu * hb2[j];
         }
 
         // Multiply hb by w2 to project back to 288 dimensions
         std::vector<float> w2_out(dim);
-        mult_matrix(w2_out, hb, w2_layer, dim, dim);
+        mult_matrix(w2_out, hb, w2_layer, dim, hidden_dim);
 
         // Feed-Forward Residual Add
         // Residual Add 2: Engine adds this result back into x: x = x + w2_out
