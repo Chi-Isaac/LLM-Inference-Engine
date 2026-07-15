@@ -75,6 +75,21 @@ void forward(const Model& model, const std::vector<int>& ids, int current_positi
     std::vector<float> v(model.config.n_kv_heads * head_size);
 
     for (int i = 0; i < model.config.n_layers; i++) {
-        // perform logic for a single layer
+        // Pre-attention normalisation
+        std::vector<float> xb = pre_att_norm(model, x, i);
+
+        // Query, Key, Value projections
+        // Pointers to weights for ith layer
+        float *wq_layer = model.weights.wq + i * dim * dim;
+        float *wk_layer = model.weights.wk + i * dim * head_size;
+        float *wv_layer = model.weights.wv + i * dim * head_size;
+
+        mult_matrix(q, xb, wq_layer, dim, dim);
+        mult_matrix(k, xb, wk_layer, model.config.n_kv_heads * head_size, dim);
+        mult_matrix(v, xb, wv_layer, model.config.n_kv_heads * head_size, dim);
+
+        // Appply RoPE to Q and K
+        q = apply_rpe(model, q, current_position);
+        k = apply_rpe(model, k, current_position);
     }
 }
