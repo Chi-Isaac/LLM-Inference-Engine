@@ -160,5 +160,9 @@ void forward(const Model& model, const std::vector<int>& ids, int current_positi
             model.kv_cache.key_cache[kv_offset + j] = k[j];
             model.kv_cache.value_cache[kv_offset + j] = v[j];
         }
+
+        // Attention Scoring
+        std::vector<float> attn_out(dim);
+        compute_attention(model, attn_out, q, current_position, layer_offset);
     }
 }
