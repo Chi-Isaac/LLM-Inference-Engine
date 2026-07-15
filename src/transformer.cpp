@@ -62,22 +62,22 @@ void mult_matrix(std::vector<float>& result, const std::vector<float>& x, const 
     }
 }
 
-void compute_attention(std::vector<float>& attn_out, const std::vector<float>& q, const KVCache & kv_cache, int curr_pos, int kv_offset, int n_heads, int n_kv_heads, int head_size) {
+void compute_attention(const Model& model, std::vector<float>& attn_out, const std::vector<float>& q, int curr_pos, int kv_offset) {
     // Calculate similarity scores
     // How many queries per key value pair
-    int queries_per_group = n_heads / n_kv_heads;
+    int queries_per_group = model.config.n_heads / model.config.n_kv_heads;
 
     // Iterate over attention heads
-    for (int head = 0; head < n_heads; head++) {
-        const float* q_head = q.data() + head * head_size;
+    for (int head = 0; head < model.config.n_heads; head++) {
+        const float* q_head = q.data() + head * model.config.head_size;
         int kv_head = head / queries_per_group; // Which KV head to use
 
         std::vector<float> attn_scores(curr_pos + 1);
         for (int pos = 0; pos <= curr_pos; pos++) {
-            const float* k_head = kv_cache.key_cache.data() + kv_offset;
+            const float* k_head = model.kv_cache.key_cache.data() + kv_offset;
 
             float score = 0.0f;
-            for (int i = 0; i < head_size; i++) {
+            for (int i = 0; i < model.config.head_size; i++) {
                 score += q_head[i] * k_head[i];
             }
             score /= std::sqrt(static_cast<float>(head_size)); // Scale by sqrt of head size
