@@ -41,3 +41,5 @@ typedef struct {
     struct RpeCache rpe_cache;
     struct KVCache kv_cache;
 } Model;
+
+void load_model(Model *model, void *data, size_t file_size);

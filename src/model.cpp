@@ -69,18 +69,25 @@ void load_model(Model *model, void *data, size_t file_size) {
     // Calculate how many bytes ptr has advanced from the start of data
     size_t ptr_offset = (char*)ptr - (char*)data;
     
-    // If ptr hasn't hit the end, wcls is at ptr. If it has, wcls is tied to embeddings.
-    // We add a small buffer (e.g. sizeof(float)) to account for potential padding
-    if (ptr_offset + sizeof(float) <= file_size) {
+    // The wcls matrix requires vocab_size * dim * sizeof(float) bytes
+    size_t wcls_size = model->config.vocab_size * model->config.dim * sizeof(float);
+    
+    // Check if the file actually has enough space for the full matrix
+    if (ptr_offset + wcls_size <= file_size) {
         model->weights.wcls = ptr;
     } else {
+        // Tied weights: point wcls back to the start of the file
         model->weights.wcls = model->weights.token_embedding_table;
     }
 
     // Instantiate KV cache
-    int kv_cache_size = model->config.n_layers * model->config.n_kv_heads * model->config.seq_len * head_size;
-    model->kv_cache.key_cache.resize(kv_cache_size);
-    model->kv_cache.value_cache.resize(kv_cache_size);
+    int head_size_local = model->config.dim / model->config.n_heads;
+    int kv_dim = model->config.n_kv_heads * head_size_local;
+    int num_rows = model->config.n_layers * model->config.seq_len;
+
+    model->kv_cache.key_cache.resize(num_rows, std::vector<float>(kv_dim, 0.0f));
+    model->kv_cache.value_cache.resize(num_rows, std::vector<float>(kv_dim, 0.0f));
+
     build_rpe_cache(model);
 }
 /*

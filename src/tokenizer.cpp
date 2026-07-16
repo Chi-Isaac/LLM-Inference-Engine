@@ -78,7 +78,13 @@ const Token& Tokenizer::token_at(int id) const {
 }
 
 std::string Tokenizer::decode(int id) const {
-    return token_at(id).text;
+    std::string text = token_at(id).text;
+    if (text == "<0x0A>") {
+        return "\n";
+    } else if (id == 2) {
+        return "";
+    }
+    return text;
 }
 
 std::optional<int> Tokenizer::find_token(const std::string& text) const {
@@ -254,7 +260,7 @@ static void print_pieces(const Tokenizer& tokenizer, const std::vector<int>& tok
         std::cout << "[" << id << "] \"" << tok.text << "\"\n";
     }
 }
-
+/*
 int main(int argc, char* argv[]) {
     try {
         if (argc < 3) {
@@ -282,3 +288,4 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 }
+    */
