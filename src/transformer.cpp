@@ -139,13 +139,11 @@ void compute_attention(const Model& model,
     }
 }
 
-// --- NEW PENALTY & SAMPLING FUNCTIONS ---
-
 void apply_repetition_penalty(std::vector<float>& logits, const std::vector<int>& history, float penalty = 1.05f) {
     if (penalty <= 1.0f || history.empty()) return;
 
     // Sliding window: only penalize tokens from the last 64 generated tokens
-    int window_size = 64;
+    int window_size = 16;
     int start_idx = std::max(0, static_cast<int>(history.size()) - window_size);
 
     for (int i = start_idx; i < history.size(); i++) {
@@ -251,8 +249,6 @@ int sample_dynamic_temperature_top_p(std::vector<float>& logits, float dynatemp_
     return logits.size() - 1;
 }
 
-// --- UPDATED FORWARD WITH HISTORY ---
-
 int forward(Model& model, int token_id, int current_position, const std::vector<int>& history) {
     int dim = model.config.dim;
     int head_size = dim / model.config.n_heads;
@@ -330,17 +326,18 @@ int forward(Model& model, int token_id, int current_position, const std::vector<
     apply_repetition_penalty(logits, history, 1.2f);
     
     // Applying Dynamic Temperature and Top-P (0.9f)
-    int id = sample_dynamic_temperature_top_p(logits, 0.2f, 0.8f, 1.0f, 0.9f);
+    int id = sample_dynamic_temperature_top_p(logits, 0.6f, 0.8f, 1.0f, 0.9f);
     
     return id;
 }
 
-// --- UPDATED GENERATE WITH HISTORY ---
-
 void generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
     std::vector<int> prompt_tokens = tokenizer->encode(prompt);
-    int prompt_len = prompt_tokens.size();
     
+    // REQUIRED: Inject the BOS token (ID 1) at the start of the sequence
+    prompt_tokens.insert(prompt_tokens.begin(), 1); 
+    
+    int prompt_len = prompt_tokens.size();
     int next_token = prompt_tokens[0]; 
     std::vector<int> history;
     
