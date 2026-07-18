@@ -9,6 +9,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdexcept>
+#include <random>
+
 // Load token embedding for ids[position] into x
 void lookup(const Model& model, int id, std::vector<float>& x) {
     for (int i = 0; i < model.config.dim; i++) {
@@ -74,25 +76,6 @@ void mult_matrix(std::vector<float>& result, const std::vector<float>& x, const 
     }
 }
 
-void softmax(std::vector<float>& x, int length) {
-    float max_score = x[0];
-    for (int i = 1; i < length; i++) {
-        if (x[i] > max_score) {
-            max_score = x[i];
-        }
-    }
-
-    float sum = 0.0f;
-    for (int i = 0; i < length; i++) {
-        x[i] = std::exp(x[i] - max_score);
-        sum += x[i];
-    }
-
-    for (int i = 0; i < length; i++) {
-        x[i] /= sum;
-    }
-}
-
 // Assumes:
 // key_cache[layer * seq_len + pos][kv_dim]
 // value_cache[layer * seq_len + pos][kv_dim]
@@ -124,7 +107,21 @@ void compute_attention(const Model& model,
             attn_scores[pos] = score;
         }
 
-        softmax(attn_scores, curr_pos + 1);
+        // Softmax inline for attention scores
+        float max_score = attn_scores[0];
+        for (int i = 1; i <= curr_pos; i++) {
+            if (attn_scores[i] > max_score) {
+                max_score = attn_scores[i];
+            }
+        }
+        float sum = 0.0f;
+        for (int i = 0; i <= curr_pos; i++) {
+            attn_scores[i] = std::exp(attn_scores[i] - max_score);
+            sum += attn_scores[i];
+        }
+        for (int i = 0; i <= curr_pos; i++) {
+            attn_scores[i] /= sum;
+        }
 
         float* out_head = attn_out.data() + head * head_size;
         for (int i = 0; i < head_size; i++) {
@@ -142,11 +139,121 @@ void compute_attention(const Model& model,
     }
 }
 
-int sample(std::vector<float> v) {
-    return std::max_element(v.begin(), v.end()) - v.begin();
+// --- NEW PENALTY & SAMPLING FUNCTIONS ---
+
+void apply_repetition_penalty(std::vector<float>& logits, const std::vector<int>& history, float penalty = 1.05f) {
+    if (penalty <= 1.0f || history.empty()) return;
+
+    // Sliding window: only penalize tokens from the last 64 generated tokens
+    int window_size = 64;
+    int start_idx = std::max(0, static_cast<int>(history.size()) - window_size);
+
+    for (int i = start_idx; i < history.size(); i++) {
+        int token_id = history[i];
+        float& logit = logits[token_id];
+        
+        if (logit > 0.0f) {
+            logit /= penalty;
+        } else {
+            logit *= penalty;
+        }
+    }
 }
 
-int forward(Model& model, int token_id, int current_position) {
+float calculate_entropy(const std::vector<float>& logits) {
+    float max_val = *std::max_element(logits.begin(), logits.end());
+    float sum_exp = 0.0f;
+    std::vector<float> probs(logits.size());
+    for (size_t i = 0; i < logits.size(); i++) {
+        probs[i] = std::exp(logits[i] - max_val);
+        sum_exp += probs[i];
+    }
+    float entropy = 0.0f;
+    for (size_t i = 0; i < probs.size(); i++) {
+        float p = probs[i] / sum_exp;
+        if (p > 1e-10f) {
+            entropy -= p * std::log(p);
+        }
+    }
+    return entropy;
+}
+
+struct TokenProb {
+    int id;
+    float prob;
+};
+
+void apply_top_p(std::vector<float>& probs, float top_p) {
+    std::vector<TokenProb> sorted_probs;
+    sorted_probs.reserve(probs.size());
+    for (size_t i = 0; i < probs.size(); i++) {
+        sorted_probs.push_back({static_cast<int>(i), probs[i]});
+    }
+
+    std::sort(sorted_probs.begin(), sorted_probs.end(), 
+              [](const TokenProb& a, const TokenProb& b) { return a.prob > b.prob; });
+
+    float cumulative_prob = 0.0f;
+    for (size_t i = 0; i < sorted_probs.size(); i++) {
+        cumulative_prob += sorted_probs[i].prob;
+        if (cumulative_prob > top_p) {
+            for (size_t j = i + 1; j < sorted_probs.size(); j++) {
+                probs[sorted_probs[j].id] = 0.0f;
+            }
+            break; 
+        }
+    }
+}
+
+int sample_dynamic_temperature_top_p(std::vector<float>& logits, float dynatemp_min, float dynatemp_max, float dynatemp_exponent, float top_p) {
+    float entropy = calculate_entropy(logits);
+    float max_entropy = std::log(static_cast<float>(logits.size()));
+    float normalized_entropy = entropy / max_entropy;
+    float curved_entropy = std::pow(normalized_entropy, dynatemp_exponent);
+    float current_temp = dynatemp_min + (1.0f - curved_entropy) * (dynatemp_max - dynatemp_min);
+    
+    float max_val = -INFINITY;
+    for (size_t i = 0; i < logits.size(); i++) {
+        logits[i] /= current_temp;
+        if (logits[i] > max_val) max_val = logits[i];
+    }
+
+    float sum = 0.0f;
+    for (size_t i = 0; i < logits.size(); i++) {
+        logits[i] = std::exp(logits[i] - max_val);
+        sum += logits[i];
+    }
+    for (size_t i = 0; i < logits.size(); i++) {
+        logits[i] /= sum;
+    }
+
+    // Apply Top-P masking
+    apply_top_p(logits, top_p);
+
+    // Re-normalize probabilities after Top-P masking
+    sum = 0.0f;
+    for (float p : logits) sum += p;
+    for (float& p : logits) p /= sum;
+
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+    
+    float coin = dis(gen);
+    float cumulative_prob = 0.0f;
+    
+    for (size_t i = 0; i < logits.size(); i++) {
+        cumulative_prob += logits[i];
+        if (coin < cumulative_prob) {
+            return i;
+        }
+    }
+    return logits.size() - 1;
+}
+
+// --- UPDATED FORWARD WITH HISTORY ---
+
+int forward(Model& model, int token_id, int current_position, const std::vector<int>& history) {
     int dim = model.config.dim;
     int head_size = dim / model.config.n_heads;
     int kv_dim = model.config.n_kv_heads * head_size;
@@ -215,49 +322,46 @@ int forward(Model& model, int token_id, int current_position) {
         }
     }
     x = final_norm(model, x);
+    
     std::vector<float> logits(model.config.vocab_size);
     mult_matrix(logits, x, model.weights.wcls, model.config.vocab_size, dim);
-    int id = sample(logits);
+    
+    // Applying Repetition Penalty
+    apply_repetition_penalty(logits, history, 1.2f);
+    
+    // Applying Dynamic Temperature and Top-P (0.9f)
+    int id = sample_dynamic_temperature_top_p(logits, 0.2f, 0.8f, 1.0f, 0.9f);
+    
     return id;
 }
+
+// --- UPDATED GENERATE WITH HISTORY ---
 
 void generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
     std::vector<int> prompt_tokens = tokenizer->encode(prompt);
     int prompt_len = prompt_tokens.size();
     
-    // (Optional but recommended) LLaMA often expects a BOS token (ID 1) at the very start
-    // prompt_tokens.insert(prompt_tokens.begin(), 1); 
-    // prompt_len++;
-
     int next_token = prompt_tokens[0]; 
+    std::vector<int> history;
     
     for (int pos = 0; pos < model->config.seq_len; pos++) {
+        history.push_back(next_token);
         
-        int predicted = forward(*model, next_token, pos);
+        int predicted = forward(*model, next_token, pos, history);
         
         if (pos < prompt_len - 1) {
-            // Still reading the prompt
             next_token = prompt_tokens[pos + 1];
         } else {
-            // Generating new tokens
             next_token = predicted;
             
-            // --- EOS CHECK ---
-            // If the model generates the End-Of-Sequence token (usually ID 2), stop generating!
-            if (next_token == 2) {
-                break; 
-            }
+            if (next_token == 2) break; 
             
-            // Decode and print the generated token
             std::string word = tokenizer->decode(next_token);
             std::cout << word << std::flush;
         }
     }
-    std::cout << std::endl; // Print a final newline when generation finishes
+    std::cout << std::endl;
 }
-
-#include <iostream>
-#include <stdexcept>
 
 // Ensure Tokenizer is included so we can instantiate it
 // #include "tokenizer.hpp"
@@ -272,7 +376,6 @@ int main(int argc, char** argv) {
     const char* tokenizer_path = argv[2];
     std::string prompt = argv[3];
 
-    // 1. Open the model file
     int fd = open(model_path, O_RDONLY);
     if (fd < 0) {
         std::cerr << "Error: Could not open model file " << model_path << std::endl;
@@ -287,21 +390,17 @@ int main(int argc, char** argv) {
     }
     size_t file_size = sb.st_size;
 
-    // 2. Memory-map the weights file directly into RAM
     void *data = mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (data == MAP_FAILED) {
         std::cerr << "Error: mmap failed" << std::endl;
         close(fd);
         return 1;
     }
-    
-    // We can close the file descriptor safely; mmap keeps the mapping active
     close(fd);
 
     Model model;
     
     std::cout << "Loading model..." << std::endl;
-    // 3. Point our structs to the memory-mapped data
     load_model(&model, data, file_size);
     
     std::cout << "--- Model Configuration ---" << std::endl;
@@ -313,22 +412,19 @@ int main(int argc, char** argv) {
     std::cout << "vocab_size: " << model.config.vocab_size << std::endl;
     std::cout << "seq_len: " << model.config.seq_len << std::endl;
 
-    // 4. Load the Tokenizer
     Tokenizer tokenizer;
     std::cout << "\nLoading tokenizer..." << std::endl;
     if (!tokenizer.load_from_file(tokenizer_path)) {
         std::cerr << "Error: Failed to load tokenizer from " << tokenizer_path << std::endl;
-        munmap(data, file_size); // Cleanup
+        munmap(data, file_size);
         return 1;
     }
 
-    // 5. Generate Text
     std::cout << "\n--- Starting Generation ---\n" << std::endl;
-    std::cout << prompt; // Print prompt so it flows visually into generation
+    std::cout << prompt;
     
     generate(&model, &tokenizer, prompt);
 
-    // 6. Cleanup memory map
     munmap(data, file_size);
     return 0;
 }
