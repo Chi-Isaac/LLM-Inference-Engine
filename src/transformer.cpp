@@ -11,6 +11,11 @@
 #include <stdexcept>
 #include <random>
 
+struct TokenProb {
+    int id;
+    float prob;
+};
+
 // Load token embedding for ids[position] into x
 void lookup(const Model& model, int id, std::vector<float>& x) {
     for (int i = 0; i < model.config.dim; i++) {
@@ -210,11 +215,6 @@ float calculate_entropy(const std::vector<float>& logits) {
     return entropy;
 }
 
-struct TokenProb {
-    int id;
-    float prob;
-};
-
 void apply_top_p(std::vector<float>& probs, float top_p) {
     std::vector<TokenProb> sorted_probs;
     sorted_probs.reserve(probs.size());
@@ -355,13 +355,11 @@ int forward(Model& model, int token_id, int current_position, const std::vector<
     
     std::vector<float> logits(model.config.vocab_size);
     mult_matrix(logits, x, model.weights.wcls, model.config.vocab_size, dim);
-    
-    // Applying Repetition Penalty
+    // logits[start_id] = -1e30f;   // forbid BOS during generation
     apply_repetition_penalty(logits, history, 1.2f);
     
     // Applying Dynamic Temperature and Top-P (0.9f)
     int id = sample_dynamic_temperature_top_p(logits, 0.6f, 0.8f, 1.0f, 0.9f);
-    // int id = std::max_element(logits.begin(), logits.end()) - logits.begin();
     return id;
 }
 
@@ -383,7 +381,7 @@ void generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
         } else {
             next_token = predicted;
             
-            if (next_token == 2) break; 
+            if (next_token == start_id || next_token == end_id) break; 
             
             std::string word = tokenizer->decode(next_token);
             std::cout << word << std::flush;
@@ -392,8 +390,6 @@ void generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
     std::cout << std::endl;
 }
 
-// Ensure Tokenizer is included so we can instantiate it
-// #include "tokenizer.hpp"
 int main(int argc, char** argv) {
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0] << " <model_file.bin> <tokenizer.bin> \"Prompt text\"" << std::endl;
@@ -456,56 +452,3 @@ int main(int argc, char** argv) {
     munmap(data, file_size);
     return 0;
 }
-/*
-int main(int argc, char** argv) {
-    int fd = open("./data/stories15M.bin", O_RDONLY);
-    if (fd < 0) {
-        std::cerr << "Error: Could not open model file " << "./data/stories15M.bin" << std::endl;
-        return 1;
-    }
-
-    struct stat sb;
-    if (fstat(fd, &sb) == -1) {
-        std::cerr << "Error: Could not stat model file" << std::endl;
-        close(fd);
-        return 1;
-    }
-    size_t file_size = sb.st_size;
-
-    void *data = mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    if (data == MAP_FAILED) {
-        std::cerr << "Error: mmap failed" << std::endl;
-        close(fd);
-        return 1;
-    }
-    close(fd);
-
-    Model model;
-    
-    std::cout << "Loading model..." << std::endl;
-    load_model(&model, data, file_size);
-    
-    std::cout << "--- Model Configuration ---" << std::endl;
-    std::cout << "dim: " << model.config.dim << std::endl;
-    std::cout << "hidden_dim: " << model.config.hidden_dim << std::endl;
-    std::cout << "n_layers: " << model.config.n_layers << std::endl;
-    std::cout << "n_heads: " << model.config.n_heads << std::endl;
-    std::cout << "n_kv_heads: " << model.config.n_kv_heads << std::endl;
-    std::cout << "vocab_size: " << model.config.vocab_size << std::endl;
-    std::cout << "seq_len: " << model.config.seq_len << std::endl;
-
-    Tokenizer tokenizer;
-    std::cout << "\nLoading tokenizer..." << std::endl;
-    if (!tokenizer.load_from_file("./data/tokenizer.bin")) {
-        std::cerr << "Error: Failed to load tokenizer from " << "./data/tokenizer.bin" << std::endl;
-        munmap(data, file_size);
-        return 1;
-    }
-
-
-    auto ids = tokenizer.encode("Once upon a time");
-    for (int id : ids) std::cout << id << " ";
-    std::cout << "\n";
-    for (int id : ids) std::cout << tokenizer.decode(id);
-    std::cout << "\n";
-} */
