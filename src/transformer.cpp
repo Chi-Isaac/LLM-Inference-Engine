@@ -18,21 +18,55 @@ void lookup(const Model& model, int id, std::vector<float>& x) {
     }
 }
 
-// Apply RoPE to any even-length vector using its actual size
-std::vector<float> apply_rpe(const Model& model, const std::vector<float>& orig, int current_position) {
-    std::vector<float> rotated(orig.size());
+std::vector<float> apply_rope_q(
+    const Model& model,
+    const std::vector<float>& x,
+    int pos)
+{
+    int head_size = model.config.dim / model.config.n_heads;
+    std::vector<float> out(x.size());
 
-    int num_pairs = static_cast<int>(orig.size()) / 2;
-    for (int pair_idx = 0; pair_idx < num_pairs; pair_idx++) {
-        int i = 2 * pair_idx;
-        float sinv = model.rpe_cache.sin_cache[current_position][pair_idx];
-        float cosv = model.rpe_cache.cos_cache[current_position][pair_idx];
+    for (int h = 0; h < model.config.n_heads; h++) {
+        int base = h * head_size;
+        for (int i = 0; i < head_size; i += 2) {
+            int pair_idx = i / 2;
+            float cosv = model.rpe_cache.cos_cache[pos][pair_idx];
+            float sinv = model.rpe_cache.sin_cache[pos][pair_idx];
 
-        rotated[i]     = orig[i] * cosv - orig[i + 1] * sinv;
-        rotated[i + 1] = orig[i] * sinv + orig[i + 1] * cosv;
+            float a = x[base + i];
+            float b = x[base + i + 1];
+
+            out[base + i]     = a * cosv - b * sinv;
+            out[base + i + 1] = a * sinv + b * cosv;
+        }
     }
+    return out;
+}
 
-    return rotated;
+std::vector<float> apply_rope_k(
+    const Model& model,
+    const std::vector<float>& x,
+    int pos)
+{
+    int head_size = model.config.dim / model.config.n_heads;
+    int kv_dim = model.config.n_kv_heads * head_size;
+    std::vector<float> out(kv_dim);
+
+    for (int h = 0; h < model.config.n_kv_heads; h++) {
+        int base = h * head_size;
+        for (int i = 0; i < head_size; i += 2) {
+            int pair_idx = i / 2;
+            float cosv = model.rpe_cache.cos_cache[pos][pair_idx];
+            float sinv = model.rpe_cache.sin_cache[pos][pair_idx];
+
+            float a = x[base + i];
+            float b = x[base + i + 1];
+
+            out[base + i]     = a * cosv - b * sinv;
+            out[base + i + 1] = a * sinv + b * cosv;
+        }
+    }
+    return out;
 }
 
 std::vector<float> rms_norm(const Model& model, const std::vector<float>& vector, int curr_layer, float* norm_weights) {
@@ -274,8 +308,8 @@ int forward(Model& model, int token_id, int current_position, const std::vector<
         mult_matrix(k, xb, wk_layer, kv_dim, dim);
         mult_matrix(v, xb, wv_layer, kv_dim, dim);
 
-        q = apply_rpe(model, q, current_position);
-        k = apply_rpe(model, k, current_position);
+        q = apply_rope_q(model, q, current_position);
+        k = apply_rope_k(model, k, current_position);
 
         int cache_row = layer * model.config.seq_len + current_position;
         for (int j = 0; j < kv_dim; j++) {
@@ -327,15 +361,13 @@ int forward(Model& model, int token_id, int current_position, const std::vector<
     
     // Applying Dynamic Temperature and Top-P (0.9f)
     int id = sample_dynamic_temperature_top_p(logits, 0.6f, 0.8f, 1.0f, 0.9f);
-    
+    // int id = std::max_element(logits.begin(), logits.end()) - logits.begin();
     return id;
 }
 
 void generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
     std::vector<int> prompt_tokens = tokenizer->encode(prompt);
-    
-    // REQUIRED: Inject the BOS token (ID 1) at the start of the sequence
-    prompt_tokens.insert(prompt_tokens.begin(), 1); 
+
     
     int prompt_len = prompt_tokens.size();
     int next_token = prompt_tokens[0]; 
@@ -362,7 +394,6 @@ void generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
 
 // Ensure Tokenizer is included so we can instantiate it
 // #include "tokenizer.hpp"
-
 int main(int argc, char** argv) {
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0] << " <model_file.bin> <tokenizer.bin> \"Prompt text\"" << std::endl;
@@ -425,3 +456,56 @@ int main(int argc, char** argv) {
     munmap(data, file_size);
     return 0;
 }
+/*
+int main(int argc, char** argv) {
+    int fd = open("./data/stories15M.bin", O_RDONLY);
+    if (fd < 0) {
+        std::cerr << "Error: Could not open model file " << "./data/stories15M.bin" << std::endl;
+        return 1;
+    }
+
+    struct stat sb;
+    if (fstat(fd, &sb) == -1) {
+        std::cerr << "Error: Could not stat model file" << std::endl;
+        close(fd);
+        return 1;
+    }
+    size_t file_size = sb.st_size;
+
+    void *data = mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (data == MAP_FAILED) {
+        std::cerr << "Error: mmap failed" << std::endl;
+        close(fd);
+        return 1;
+    }
+    close(fd);
+
+    Model model;
+    
+    std::cout << "Loading model..." << std::endl;
+    load_model(&model, data, file_size);
+    
+    std::cout << "--- Model Configuration ---" << std::endl;
+    std::cout << "dim: " << model.config.dim << std::endl;
+    std::cout << "hidden_dim: " << model.config.hidden_dim << std::endl;
+    std::cout << "n_layers: " << model.config.n_layers << std::endl;
+    std::cout << "n_heads: " << model.config.n_heads << std::endl;
+    std::cout << "n_kv_heads: " << model.config.n_kv_heads << std::endl;
+    std::cout << "vocab_size: " << model.config.vocab_size << std::endl;
+    std::cout << "seq_len: " << model.config.seq_len << std::endl;
+
+    Tokenizer tokenizer;
+    std::cout << "\nLoading tokenizer..." << std::endl;
+    if (!tokenizer.load_from_file("./data/tokenizer.bin")) {
+        std::cerr << "Error: Failed to load tokenizer from " << "./data/tokenizer.bin" << std::endl;
+        munmap(data, file_size);
+        return 1;
+    }
+
+
+    auto ids = tokenizer.encode("Once upon a time");
+    for (int id : ids) std::cout << id << " ";
+    std::cout << "\n";
+    for (int id : ids) std::cout << tokenizer.decode(id);
+    std::cout << "\n";
+} */

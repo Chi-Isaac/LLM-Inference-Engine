@@ -7,19 +7,21 @@
 #include <stdio.h>
 #include <cmath>
 
-void build_rpe_cache(Model *model) {
-    int num_pairs = model->config.dim / 2;
-    model->rpe_cache.sin_cache = std::vector<std::vector<float>>(model->config.seq_len, std::vector<float>(num_pairs, 0.0f));
-    model->rpe_cache.cos_cache = std::vector<std::vector<float>>(model->config.seq_len, std::vector<float>(num_pairs, 0.0f));
-    std::vector<float> theta(num_pairs);
-    for (int pair_idx = 0; pair_idx < num_pairs; pair_idx++) {
-        float exponent = -2.0f * pair_idx / static_cast<float>(model->config.dim);
-        theta[pair_idx] = std::pow(10000.0f, exponent);
-    }
+void build_rpe_cache(Model* model) {
+    int head_size = model->config.dim / model->config.n_heads;
+    int num_pairs = head_size / 2;
 
-    for (int pos = 0; pos < model->config.seq_len; pos++) {
-        for (int pair_idx = 0; pair_idx < num_pairs; pair_idx++) {
-            float angle = pos * theta[pair_idx];
+    model->rpe_cache.sin_cache.assign(
+        model->config.seq_len, std::vector<float>(num_pairs, 0.0f));
+    model->rpe_cache.cos_cache.assign(
+        model->config.seq_len, std::vector<float>(num_pairs, 0.0f));
+
+    for (int pair_idx = 0; pair_idx < num_pairs; pair_idx++) {
+        float exponent = -2.0f * pair_idx / static_cast<float>(head_size);
+        float theta = std::pow(10000.0f, exponent);
+
+        for (int pos = 0; pos < model->config.seq_len; pos++) {
+            float angle = pos * theta;
             model->rpe_cache.sin_cache[pos][pair_idx] = std::sin(angle);
             model->rpe_cache.cos_cache[pos][pair_idx] = std::cos(angle);
         }
