@@ -30,6 +30,12 @@ void build_rpe_cache(Model* model) {
 void load_model(Model *model, void *data, size_t file_size) {
     memcpy(&model->config, data, sizeof(struct Config));
     float *ptr = (float *)((char *)data + sizeof(struct Config));
+
+    // 1. Check if weights are shared based on the negative sign
+    bool shared_weights = (model->config.vocab_size < 0) ? true : false;
+
+    // 2. Take the absolute value so the math operations use the real number (32000)
+    model->config.vocab_size = std::abs(model->config.vocab_size);
     int head_size = model->config.dim / model->config.n_heads;
 
     // Embeddings
@@ -75,7 +81,7 @@ void load_model(Model *model, void *data, size_t file_size) {
     size_t wcls_size = model->config.vocab_size * model->config.dim * sizeof(float);
     
     // Check if the file actually has enough space for the full matrix
-    if (ptr_offset + wcls_size <= file_size) {
+    if (!shared_weights) {
         model->weights.wcls = ptr;
     } else {
         // Tied weights: point wcls back to the start of the file
