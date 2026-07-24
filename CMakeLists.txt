@@ -6,6 +6,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# 1. Change the default build type to Release for performance
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+# 2. Properly find the OpenMP package
+find_package(OpenMP REQUIRED)
+
 add_executable(llm_inference
     src/model.cpp
     src/tokenizer.cpp
@@ -14,14 +22,15 @@ add_executable(llm_inference
 
 target_include_directories(llm_inference PRIVATE include)
 
+# 3. Add -O3 and -march=native here (removed -fopenmp from here)
 target_compile_options(llm_inference PRIVATE
+    -O3
+    -march=native
     -ffast-math
     -Wall
     -Wextra
     -Wpedantic
 )
 
-# Optional: nicer build type default
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
-endif()
+# 4. Correctly link OpenMP to your executable for both compiling and linking
+target_link_libraries(llm_inference PRIVATE OpenMP::OpenMP_CXX)

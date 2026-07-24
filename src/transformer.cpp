@@ -106,6 +106,7 @@ std::vector<float> final_norm(const Model& model, const std::vector<float>& vect
 }
 
 void mult_matrix(std::vector<float>& result, const std::vector<float>& x, const float* w, int rows, int cols) {
+    #pragma omp parallel for
     for (int i = 0; i < rows; i++) {
         float value = 0.0f;
         for (int j = 0; j < cols; j++) {
@@ -182,13 +183,18 @@ void apply_repetition_penalty(std::vector<float>& logits, const std::vector<int>
     if (penalty <= 1.0f || history.empty()) return;
 
     // Sliding window: only penalize tokens from the last 64 generated tokens
-    int window_size = 16;
+    int window_size = 64;
     int start_idx = std::max(0, static_cast<int>(history.size()) - window_size);
 
     for (int i = start_idx; i < history.size(); i++) {
         int token_id = history[i];
-        float& logit = logits[token_id];
         
+        // Do not penalize EOS, BOS, or special ChatML tokens
+        if (token_id == 1 || token_id == 2 || token_id >= 32000) {
+            continue; 
+        }
+
+        float& logit = logits[token_id];
         if (logit > 0.0f) {
             logit /= penalty;
         } else {
@@ -197,6 +203,7 @@ void apply_repetition_penalty(std::vector<float>& logits, const std::vector<int>
     }
 }
 
+// Calculates how 'certain' the model is about what the next word should be
 float calculate_entropy(const std::vector<float>& logits) {
     float max_val = *std::max_element(logits.begin(), logits.end());
     float sum_exp = 0.0f;
@@ -215,13 +222,14 @@ float calculate_entropy(const std::vector<float>& logits) {
     return entropy;
 }
 
+
 void apply_top_p(std::vector<float>& probs, float top_p) {
     std::vector<TokenProb> sorted_probs;
     sorted_probs.reserve(probs.size());
     for (size_t i = 0; i < probs.size(); i++) {
         sorted_probs.push_back({static_cast<int>(i), probs[i]});
     }
-
+    // Sorts based on an anonymous ordering function
     std::sort(sorted_probs.begin(), sorted_probs.end(), 
               [](const TokenProb& a, const TokenProb& b) { return a.prob > b.prob; });
 
@@ -356,11 +364,12 @@ int forward(Model& model, int token_id, int current_position, const std::vector<
     std::vector<float> logits(model.config.vocab_size);
     mult_matrix(logits, x, model.weights.wcls, model.config.vocab_size, dim);
     // logits[start_id] = -1e30f;   // forbid BOS during generation
-    apply_repetition_penalty(logits, history, 1.2f);
+    apply_repetition_penalty(logits, history, 1.05f);
     
-    // Applying Dynamic Temperature and Top-P (0.9f)
+
     int id = sample_dynamic_temperature_top_p(logits, 0.6f, 0.8f, 1.0f, 0.9f);
-    return id;
+    // int id = std::distance(logits.begin(), std::max_element(logits.begin(), logits.end()));
+    return id;    
 }
 
 void generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
