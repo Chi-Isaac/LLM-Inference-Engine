@@ -1,3 +1,5 @@
+#include <vector>
+
 struct Config {
     int dim;
     int hidden_dim;
@@ -10,7 +12,7 @@ struct Config {
 
 struct TransformerWeights {
     float *token_embedding_table;
-    float *rms_att_Weight;
+    float *rms_att_weight;
     float *wq;
     float *wk;
     float *wv;
@@ -22,3 +24,22 @@ struct TransformerWeights {
     float *rms_final_weight;
     float *wcls;
 };
+
+struct RpeCache {
+    std::vector<std::vector<float>> sin_cache;
+    std::vector<std::vector<float>> cos_cache;
+};
+
+struct KVCache {
+    std::vector<std::vector<float>> key_cache;
+    std::vector<std::vector<float>> value_cache;
+};
+
+typedef struct {
+    struct Config config;
+    struct TransformerWeights weights;
+    struct RpeCache rpe_cache;
+    struct KVCache kv_cache;
+} Model;
+
+void load_model(Model *model, void *data, size_t file_size);
