@@ -116,6 +116,37 @@ void mult_matrix(std::vector<float>& result, const std::vector<float>& x, const 
     }
 }
 
+void mult_matrices(std::vector<float>& result_matrix, 
+                       const std::vector<float>& input_matrix, 
+                       const float* weight_matrix, 
+                       int batch_size, 
+                       int out_dim, 
+                       int in_dim) {
+    // result_matrix size: [batch_size, out_dim]
+    // input_matrix size:  [batch_size, in_dim]
+    // weight_matrix size: [out_dim, in_dim], because its transposed in memory 
+
+    // We parallelize over both the batch dimension and the output dimension
+    // OpenMP collapse(2) merges the two outer loops into a massive pool of parallel tasks
+    #pragma omp parallel for collapse(2)
+    for (int b = 0; b < batch_size; b++) {
+        for (int o = 0; o < out_dim; o++) {
+            float sum = 0.0f;
+            
+            // Pointer to the start of the current token's input vector
+            const float* in_ptr = input_matrix.data() + (b * in_dim);
+            
+            // Pointer to the start of the current output feature's weight row
+            const float* w_ptr = weight_matrix + (o * in_dim);
+            
+            for (int i = 0; i < in_dim; i++) {
+                sum += in_ptr[i] * w_ptr[i];
+            }
+            
+            result_matrix[b * out_dim + o] = sum;
+        }
+    }
+}
 // Assumes:
 // key_cache[layer * seq_len + pos][kv_dim]
 // value_cache[layer * seq_len + pos][kv_dim]
@@ -291,6 +322,124 @@ int sample_dynamic_temperature_top_p(std::vector<float>& logits, float dynatemp_
     return logits.size() - 1;
 }
 
+int prefill(Model &model, const std::vector<int>& prompt_ids, std::vector<int>& history) {
+    int num_ids = prompt_ids.size();
+    int dim = model.config.dim;
+    int head_size = dim / model.config.n_heads;
+    int kv_dim = model.config.n_kv_heads * head_size;
+    int hidden_dim = model.config.hidden_dim;
+    std::vector<float> X_matrix(num_ids * dim);
+
+    for(int i = 0; i < num_ids; i++) {
+        const float *emb_row = model.weights.token_embedding_table + prompt_ids[i] * dim;
+        for (int j = 0; j < dim; j++) {
+            X_matrix[i * dim + j] = emb_row[j];
+        }
+        history.push_back(prompt_ids[i]);
+    }
+
+    std::vector<float> Q_matrix(num_ids * dim);
+    std::vector<float> K_matrix(num_ids * kv_dim);
+    std::vector<float> V_matrix(num_ids * kv_dim);
+    std::vector<float> Attn_matrix(num_ids * dim);
+    std::vector<float> hb_matrix(num_ids * hidden_dim);
+    std::vector<float> hb2_matrix(num_ids * hidden_dim);
+    for (int layer = 0; layer < model.config.n_layers; layer++) {
+        std::vector<float> xb_matrix(num_ids * dim);
+        for (int i = 0; i < num_ids; i++) {
+            std::vector<float> row(X_matrix.begin() + i * dim, X_matrix.begin() + (i + 1) * dim);
+            std::vector<float> norm = pre_att_norm(model, row, layer);
+            for (int j = 0; j < dim; j++) {
+                xb_matrix[i * dim + j] = norm[j];
+            }
+        }
+        mult_matrices(Q_matrix, xb_matrix, model.weights.wq + layer * dim * dim, num_ids, dim, dim);
+        mult_matrices(K_matrix, xb_matrix, model.weights.wk + layer * kv_dim * dim, num_ids, kv_dim, dim);
+        mult_matrices(V_matrix, xb_matrix, model.weights.wv + layer * kv_dim * dim, num_ids, kv_dim, dim);
+        #pragma omp parallel for
+        for (int i = 0; i < num_ids; i++) {
+            std::vector<float> q_row(Q_matrix.begin() + i * dim, Q_matrix.begin() + (i + 1) * dim);
+            std::vector<float> k_row(K_matrix.begin() + i * kv_dim, K_matrix.begin() + (i + 1) * kv_dim);
+
+            q_row = apply_rope_q(model, q_row, i);
+            k_row = apply_rope_k(model, k_row, i);
+
+            for (int j = 0; j < dim; j++) {
+                Q_matrix[i * dim + j] = q_row[j];
+            }
+
+            int cache_row = layer * model.config.seq_len + i; 
+            for (int j = 0; j < kv_dim; j++) {
+                model.kv_cache.key_cache[cache_row][j] = k_row[j];
+                model.kv_cache.value_cache[cache_row][j] = V_matrix[i * kv_dim + j];
+            }
+        }
+        #pragma omp parallel for
+        for (int i = 0; i < num_ids; i++) {
+            std::vector<float> q_row(Q_matrix.begin() + i * dim, Q_matrix.begin() + (i + 1) * dim);
+            std::vector<float> attn_out(dim);
+            compute_attention(model, attn_out, q_row, i, layer);
+            for (int j = 0; j < dim; j++) {
+                Attn_matrix[i * dim + j] = attn_out[j];
+            }
+        }
+
+        std::vector<float> wo_out_matrix(num_ids * dim);
+        mult_matrices(wo_out_matrix, Attn_matrix, model.weights.wo + layer * dim * dim, num_ids, dim, dim);
+        #pragma omp parallel for
+        for (int i = 0; i < num_ids; i++) {
+            for (int j = 0; j < dim; j++) {
+                X_matrix[i * dim + j] += wo_out_matrix[i * dim + j];
+            }
+        }
+        std::vector<float> xb_ffn_matrix(num_ids * dim);
+        #pragma omp parallel for
+        for (int i = 0; i < num_ids; i++) {
+            std::vector<float> row(X_matrix.begin() + i * dim, X_matrix.begin() + (i + 1) * dim);
+            std::vector<float> normed = pre_ffn_norm(model, row, layer);
+            for (int j = 0; j < dim; j++) {
+                xb_ffn_matrix[i * dim + j] = normed[j];
+            }
+        }
+        mult_matrices(hb_matrix, xb_ffn_matrix, model.weights.w1 + layer * hidden_dim * dim, num_ids, hidden_dim, dim);
+        mult_matrices(hb2_matrix, xb_ffn_matrix, model.weights.w3 + layer * hidden_dim * dim, num_ids, hidden_dim, dim);      
+    
+        #pragma omp parallel for collapse(2)
+        for (int i = 0; i < num_ids; i++) {
+            for (int j = 0; j < hidden_dim; j++) {
+                float val = hb_matrix[i * hidden_dim + j];
+                float silu = val / (1.0f + std::exp(-val));
+                hb_matrix[i * hidden_dim + j] = silu * hb2_matrix[i * hidden_dim + j];
+            }
+        }
+        std::vector<float> w2_out_matrix(num_ids * dim);
+        mult_matrices(w2_out_matrix, hb_matrix, model.weights.w2 + layer * dim * hidden_dim, num_ids, dim, hidden_dim);
+
+        // --- Final FFN Residual Add ---
+        #pragma omp parallel for
+        for (int i = 0; i < num_ids; i++) {
+            for (int j = 0; j < dim; j++) {
+                X_matrix[i * dim + j] += w2_out_matrix[i * dim + j];
+            }
+        }
+    }
+
+    // 3. Classifier (We only need the logits for the very last token in the prompt)
+    std::vector<float> final_x(dim);
+    for (int i = 0; i < dim; i++) {
+        final_x[i] = X_matrix[(num_ids - 1) * dim + i]; 
+    }
+    
+    final_x = final_norm(model, final_x);
+    
+    std::vector<float> logits(model.config.vocab_size);
+    mult_matrix(logits, final_x, model.weights.wcls, model.config.vocab_size, dim);
+    
+    apply_repetition_penalty(logits, history, 1.05f);
+
+    return sample_dynamic_temperature_top_p(logits, 0.6f, 0.8f, 1.0f, 0.9f);
+}
+
 int forward(Model& model, int token_id, int current_position, const std::vector<int>& history) {
     int dim = model.config.dim;
     int head_size = dim / model.config.n_heads;
@@ -376,25 +525,24 @@ void generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
     std::vector<int> prompt_tokens = tokenizer->encode(prompt);
 
     
-    int prompt_len = prompt_tokens.size();
-    int next_token = prompt_tokens[0]; 
+    int prompt_len = prompt_tokens.size(); 
     std::vector<int> history;
+    int next_token = prefill(*model, prompt_tokens, history);
+    if (next_token == start_id || next_token == end_id) return;
+    std::cout << tokenizer->decode(next_token) << std::flush;
     
-    for (int pos = 0; pos < model->config.seq_len; pos++) {
+    
+    for (int pos = prompt_len; pos < model->config.seq_len; pos++) {
         history.push_back(next_token);
         
         int predicted = forward(*model, next_token, pos, history);
         
-        if (pos < prompt_len - 1) {
-            next_token = prompt_tokens[pos + 1];
-        } else {
-            next_token = predicted;
-            
-            if (next_token == start_id || next_token == end_id) break; 
-            
-            std::string word = tokenizer->decode(next_token);
-            std::cout << word << std::flush;
-        }
+        next_token = predicted;
+        
+        if (next_token == start_id || next_token == end_id) break; 
+        
+        std::string word = tokenizer->decode(next_token);
+        std::cout << word << std::flush;
     }
     std::cout << std::endl;
 }
