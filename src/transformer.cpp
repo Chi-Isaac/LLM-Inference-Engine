@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <stdexcept>
 #include <random>
+#include <chrono>
 
 struct TokenProb {
     int id;
@@ -521,16 +522,17 @@ int forward(Model& model, int token_id, int current_position, const std::vector<
     return id;    
 }
 
-void generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
-    std::vector<int> prompt_tokens = tokenizer->encode(prompt);
+int generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
+    int generated_tokens = 0;
 
+    std::vector<int> prompt_tokens = tokenizer->encode(prompt);
     
     int prompt_len = prompt_tokens.size(); 
     std::vector<int> history;
     int next_token = prefill(*model, prompt_tokens, history);
-    if (next_token == start_id || next_token == end_id) return;
+    if (next_token == start_id || next_token == end_id) return generated_tokens;
     std::cout << tokenizer->decode(next_token) << std::flush;
-    
+    generated_tokens++;
     
     for (int pos = prompt_len; pos < model->config.seq_len; pos++) {
         history.push_back(next_token);
@@ -543,11 +545,13 @@ void generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
         
         std::string word = tokenizer->decode(next_token);
         std::cout << word << std::flush;
+        generated_tokens++;
     }
     std::cout << std::endl;
+    return generated_tokens;
 }
 
-int main(int argc, char** argv) {
+int inference(int argc, char** argv, int &generated_tokens) {
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0] << " <model_file.bin> <tokenizer.bin> \"Prompt text\"" << std::endl;
         return 1;
@@ -604,8 +608,21 @@ int main(int argc, char** argv) {
     std::cout << "\n--- Starting Generation ---\n" << std::endl;
     std::cout << prompt;
     
-    generate(&model, &tokenizer, prompt);
+    generated_tokens = generate(&model, &tokenizer, prompt);
 
     munmap(data, file_size);
     return 0;
+}
+
+int main(int argc, char** argv) {
+    auto start = std::chrono::high_resolution_clock::now();
+    int generated_tokens = 0;
+    int exit_status = inference(argc, argv, generated_tokens);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> elapsed = end - start;
+    std::cout << "\n--- Summary ---\n";
+    std::cout << "Total Time (ms): " << elapsed.count() << "\n";
+    std::cout << "Number of Tokens Generated: " << generated_tokens << "\n";
+    std::cout << "Avg Time per Token (ms): " << (generated_tokens ? elapsed.count() / generated_tokens : 0) << "\n";
+    return exit_status;
 }
