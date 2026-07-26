@@ -14,6 +14,9 @@ endif()
 # 2. Properly find the OpenMP package
 find_package(OpenMP REQUIRED)
 
+# Find the BLAS package
+find_package(BLAS REQUIRED)
+
 add_executable(llm_inference
     src/model.cpp
     src/tokenizer.cpp
@@ -33,4 +36,7 @@ target_compile_options(llm_inference PRIVATE
 )
 
 # 4. Correctly link OpenMP to your executable for both compiling and linking
-target_link_libraries(llm_inference PRIVATE OpenMP::OpenMP_CXX)
+target_link_libraries(llm_inference PRIVATE 
+    OpenMP::OpenMP_CXX
+    BLAS::BLAS
+)

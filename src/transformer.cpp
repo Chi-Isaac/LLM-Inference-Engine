@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <random>
 #include <chrono>
+#include <cblas.h>
 
 struct TokenProb {
     int id;
@@ -106,17 +107,71 @@ std::vector<float> final_norm(const Model& model, const std::vector<float>& vect
     return rms_norm(model, vector, 0, model.weights.rms_final_weight);
 }
 
+// Naive mult_matrix implementation
+// void mult_matrix(std::vector<float>& result, const std::vector<float>& x, const float* w, int rows, int cols) {
+//     #pragma omp parallel for
+//     for (int i = 0; i < rows; i++) {
+//         float value = 0.0f;
+//         for (int j = 0; j < cols; j++) {
+//             value += x[j] * w[i * cols + j];
+//         }
+//         result[i] = value;
+//     }
+// }
+
+// Naive mult_matrices implementation
+// void mult_matrices(std::vector<float>& result_matrix, 
+//                        const std::vector<float>& input_matrix, 
+//                        const float* weight_matrix, 
+//                        int batch_size, 
+//                        int out_dim, 
+//                        int in_dim) {
+//     // result_matrix size: [batch_size, out_dim]
+//     // input_matrix size:  [batch_size, in_dim]
+//     // weight_matrix size: [out_dim, in_dim], because its transposed in memory 
+
+//     // We parallelize over both the batch dimension and the output dimension
+//     // OpenMP collapse(2) merges the two outer loops into a massive pool of parallel tasks
+//     #pragma omp parallel for collapse(2)
+//     for (int b = 0; b < batch_size; b++) {
+//         for (int o = 0; o < out_dim; o++) {
+//             float sum = 0.0f;
+            
+//             // Pointer to the start of the current token's input vector
+//             const float* in_ptr = input_matrix.data() + (b * in_dim);
+            
+//             // Pointer to the start of the current output feature's weight row
+//             const float* w_ptr = weight_matrix + (o * in_dim);
+            
+//             for (int i = 0; i < in_dim; i++) {
+//                 sum += in_ptr[i] * w_ptr[i];
+//             }
+            
+//             result_matrix[b * out_dim + o] = sum;
+//         }
+//     }
+// }
+
+// CBLAS mult_matrix implementation
 void mult_matrix(std::vector<float>& result, const std::vector<float>& x, const float* w, int rows, int cols) {
-    #pragma omp parallel for
-    for (int i = 0; i < rows; i++) {
-        float value = 0.0f;
-        for (int j = 0; j < cols; j++) {
-            value += x[j] * w[i * cols + j];
-        }
-        result[i] = value;
-    }
+    cblas_sgemv(
+        CblasRowMajor, // Rows stored contiguously in memory
+        CblasNoTrans, // Do not transpose matrix
+        rows, // Num rows in w
+        cols, // Num cols in w
+        1.0f, // Scalar multiplier for product
+        w, // Ptr to matrix w
+        cols, // Number of columns in w for lda
+        x.data(), // Ptr to vector x
+        1, // Stride of vector x
+        0.0f, // Scalar multiplier for existing contents in result
+        result.data(), // Ptr to result vector
+        1 // Stride of result vector
+    );
+    // result = 1.0 * w * x + 0.0 * result
 }
 
+// CBLAS mult_matrices implementation
 void mult_matrices(std::vector<float>& result_matrix, 
                        const std::vector<float>& input_matrix, 
                        const float* weight_matrix, 
@@ -124,30 +179,27 @@ void mult_matrices(std::vector<float>& result_matrix,
                        int out_dim, 
                        int in_dim) {
     // result_matrix size: [batch_size, out_dim]
-    // input_matrix size:  [batch_size, in_dim]
-    // weight_matrix size: [out_dim, in_dim], because its transposed in memory 
+    // input_matrix size: [batch_size, in_dim]
+    // weight_matrix size: [out_dim, in_dim] because its transposed in memory
 
-    // We parallelize over both the batch dimension and the output dimension
-    // OpenMP collapse(2) merges the two outer loops into a massive pool of parallel tasks
-    #pragma omp parallel for collapse(2)
-    for (int b = 0; b < batch_size; b++) {
-        for (int o = 0; o < out_dim; o++) {
-            float sum = 0.0f;
-            
-            // Pointer to the start of the current token's input vector
-            const float* in_ptr = input_matrix.data() + (b * in_dim);
-            
-            // Pointer to the start of the current output feature's weight row
-            const float* w_ptr = weight_matrix + (o * in_dim);
-            
-            for (int i = 0; i < in_dim; i++) {
-                sum += in_ptr[i] * w_ptr[i];
-            }
-            
-            result_matrix[b * out_dim + o] = sum;
-        }
-    }
+    cblas_sgemm(CblasRowMajor, // Use row-major order
+                CblasNoTrans, // Use input_matrix as is
+                CblasTrans, // Transpose weight_matrix
+                batch_size, // Number of rows in input_matrix
+                out_dim, // Number of columns in weight_matrix
+                in_dim, // Number of columns in input_matrix and rows in weight_matrix)
+                1.0f, // Scalar multiplier for the product
+                input_matrix.data(), // Pointer to input_matrix
+                in_dim, // Leading dimension of input_matrix (number of columns)
+                weight_matrix, // Pointer to weight_matrix
+                in_dim, // Leading dimension of weight_matrix (number of columns)
+                0.0f, // Scalar multiplier for the existing contents of result_matrix
+                result_matrix.data(), // Pointer to result_matrix
+                out_dim // Leading dimension of result_matrix (number of columns)
+            );
+    // result = 1.0 * input_matrix * weight_matrix^T + 0.0 * result_matrix
 }
+
 // Assumes:
 // key_cache[layer * seq_len + pos][kv_dim]
 // value_cache[layer * seq_len + pos][kv_dim]
