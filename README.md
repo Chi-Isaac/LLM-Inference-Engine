@@ -33,7 +33,7 @@ To build and run this engine, you will need:
 - A C++17 compatible compiler (e.g. GCC)
 - [CMake](https://cmake.org/) (minimum version 3.16)
 - **OpenMP**
-- A **BLAS** implementation (e.g. OpenBLAS)
+- A **BLAS** implementation (e.g. CBLAS)
 
 ---
 ## Building the Project
@@ -64,3 +64,11 @@ Here is an example using the TinyLlama prompt format:
 ```bash
 ./build/llm_inference "./data/tinyllama_chat.bin" "./data/tokenizer.bin" $'<|system|>\nYou are a helpful and concise AI assistant.</s>\n<|user|>\nGive me a bulleted list of 5 fun indoor hobbies to try on a rainy day.</s>\n<|assistant|>\n'
 ```
+
+---
+## Acknowledgements
+This project makes use of several open-source libraries and resources. Thanks to:
+- **[llama2.c](https://github.com/karpathy/llama2.c) by Andrej Karpathy**: For the necessary .bin files (stories15M.bin and tokenizer.bin)
+- **Meta and The Open-Source AI Community**: For the Llama architecture innovations implemented in this engine (RoPE, RMSNorm, SwiGLU, and Grouped-Query Attention), as well as the creators of the **TinyLlama** project for providing an accessible 1.1B parameter model.
+- **OpenMP**: For allowing seamless CPU multithreading cross the attention mechanism and activation functions.
+- **CBLAS (Basic Linear Algebra Subprograms)**: For providing optimised matrix multiplication routines.
