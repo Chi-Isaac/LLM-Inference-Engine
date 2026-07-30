@@ -1,6 +1,6 @@
 # LLM Inference Engine
 A custom-built, lightweight Large Language Model (LLM) inference engine written from scratch in C++.  
-This project focuses on understanding transformer architectures at a low level by implementing the core inference loop, tokenization, and model weight loading without relying on machine learning frameworks such as PyTorch or TensorFlow.
+This project focuses on understanding transformer architectures at a low level by implementing the core inference loop, tokenisation, and model weight loading without relying on machine learning frameworks such as PyTorch or TensorFlow.
 
 ---
 ## Contributors
@@ -55,10 +55,10 @@ cmake --build build -j 8
 
 ---
 ## Running Inference
-1. Download the required `.bin` model weights (e.g. `tinyllama-1.1b-chat`) and the corresponding tokenizer file into the `data/` directory.
+1. Download the required `.bin` model weights (e.g. `tinyllama-1.1b-chat`) and the corresponding tokeniser file into the `data/` directory.
     - `tokenizer.bin` and weights for the `stories15M` model are provided in the `data/` directory
     - A Python script to download the model weights for a TinyLlama model is provided in the `scripts/` directory
-2. Execute the compiled binary from the root directory, passing the model path, tokenizer path, and formatted prompt.
+2. Execute the compiled binary from the root directory, passing the model path, tokeniser path, and formatted prompt.
 
 Here is an example using the TinyLlama prompt format:
 ```bash
