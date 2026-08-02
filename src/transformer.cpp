@@ -12,6 +12,7 @@
 #include <random>
 #include <chrono>
 #include <cblas.h>
+#include <openblas_config.h>
 
 struct TokenProb {
     int id;
@@ -364,6 +365,7 @@ int prefill(Model &model, const std::vector<int>& prompt_ids, std::vector<int>& 
         mult_matrices(Q_matrix, xb_matrix, model.weights.wq + layer * dim * dim, num_ids, dim, dim);
         mult_matrices(K_matrix, xb_matrix, model.weights.wk + layer * kv_dim * dim, num_ids, kv_dim, dim);
         mult_matrices(V_matrix, xb_matrix, model.weights.wv + layer * kv_dim * dim, num_ids, kv_dim, dim);
+        openblas_set_num_threads(1); 
         #pragma omp parallel for
         for (int i = 0; i < num_ids; i++) {
             std::vector<float> q_row(Q_matrix.begin() + i * dim, Q_matrix.begin() + (i + 1) * dim);
@@ -382,6 +384,7 @@ int prefill(Model &model, const std::vector<int>& prompt_ids, std::vector<int>& 
                 model.kv_cache.value_cache[cache_row][j] = V_matrix[i * kv_dim + j];
             }
         }
+        openblas_set_num_threads(1); 
         #pragma omp parallel for
         for (int i = 0; i < num_ids; i++) {
             std::vector<float> q_row(Q_matrix.begin() + i * dim, Q_matrix.begin() + (i + 1) * dim);
@@ -394,6 +397,7 @@ int prefill(Model &model, const std::vector<int>& prompt_ids, std::vector<int>& 
 
         std::vector<float> wo_out_matrix(num_ids * dim);
         mult_matrices(wo_out_matrix, Attn_matrix, model.weights.wo + layer * dim * dim, num_ids, dim, dim);
+        openblas_set_num_threads(1); 
         #pragma omp parallel for
         for (int i = 0; i < num_ids; i++) {
             for (int j = 0; j < dim; j++) {
@@ -401,6 +405,7 @@ int prefill(Model &model, const std::vector<int>& prompt_ids, std::vector<int>& 
             }
         }
         std::vector<float> xb_ffn_matrix(num_ids * dim);
+        openblas_set_num_threads(1); 
         #pragma omp parallel for
         for (int i = 0; i < num_ids; i++) {
             std::vector<float> row(X_matrix.begin() + i * dim, X_matrix.begin() + (i + 1) * dim);
@@ -411,7 +416,7 @@ int prefill(Model &model, const std::vector<int>& prompt_ids, std::vector<int>& 
         }
         mult_matrices(hb_matrix, xb_ffn_matrix, model.weights.w1 + layer * hidden_dim * dim, num_ids, hidden_dim, dim);
         mult_matrices(hb2_matrix, xb_ffn_matrix, model.weights.w3 + layer * hidden_dim * dim, num_ids, hidden_dim, dim);      
-    
+        openblas_set_num_threads(1); 
         #pragma omp parallel for collapse(2)
         for (int i = 0; i < num_ids; i++) {
             for (int j = 0; j < hidden_dim; j++) {
@@ -424,6 +429,7 @@ int prefill(Model &model, const std::vector<int>& prompt_ids, std::vector<int>& 
         mult_matrices(w2_out_matrix, hb_matrix, model.weights.w2 + layer * dim * hidden_dim, num_ids, dim, hidden_dim);
 
         // --- Final FFN Residual Add ---
+        openblas_set_num_threads(1); 
         #pragma omp parallel for
         for (int i = 0; i < num_ids; i++) {
             for (int j = 0; j < dim; j++) {
@@ -524,7 +530,7 @@ int forward(Model& model, int token_id, int current_position, const std::vector<
     apply_repetition_penalty(logits, history, 1.05f);
     
 
-    int id = sample_dynamic_temperature_top_p(logits, 0.6f, 0.8f, 1.0f, 0.9f);
+    int id = sample_dynamic_temperature_top_p(logits, 0.1f, 0.3f, 1.0f, 0.9f);
     // int id = std::distance(logits.begin(), std::max_element(logits.begin(), logits.end()));
     return id;    
 }
@@ -559,14 +565,13 @@ int generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
 }
 
 int inference(int argc, char** argv, int &generated_tokens) {
-    if (argc < 4) {
+    if (argc < 3) {
         std::cerr << "Usage: " << argv[0] << " <model_file.bin> <tokenizer.bin> \"Prompt text\"" << std::endl;
         return 1;
     }
 
     const char* model_path = argv[1];
     const char* tokenizer_path = argv[2];
-    std::string prompt = argv[3];
 
     int fd = open(model_path, O_RDONLY);
     if (fd < 0) {
@@ -612,11 +617,38 @@ int inference(int argc, char** argv, int &generated_tokens) {
         return 1;
     }
 
-    std::cout << "\n--- Starting Generation ---\n" << std::endl;
-    std::cout << prompt;
-    
-    generated_tokens = generate(&model, &tokenizer, prompt);
+std::string configuration = "";
+std::string userInput = "";
+while (true) {
+    std::cout << "\n--- What type of assistant would you like? ---\n" << std::endl;
+    if (std::getline(std::cin, configuration)) {
+        break;
+    }
+}
 
+while (true) {
+    std::cout << "User: ";
+    if (!std::getline(std::cin, userInput)) {
+        break;
+    }
+    
+    if (userInput == "quit" || userInput == "exit") {
+        break;
+    }
+    if (userInput.empty()) {
+        continue;
+    }
+    userInput = "<|system|>\n" + configuration + "</s>\n<|user|>\n" + userInput + "</s>\n<|assistant|>\n";
+    // Add a label so you know the model is speaking
+    std::cout << "TinyLlama: ";
+    
+    // This function should now print tokens with std::flush
+    generated_tokens = generate(&model, &tokenizer, userInput);
+    
+    // Print a newline after generation is completely finished
+    // This separates the response from the next User prompt
+    std::cout << std::endl << std::endl; 
+}
     munmap(data, file_size);
     return 0;
 }
