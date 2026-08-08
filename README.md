@@ -60,9 +60,9 @@ cmake --build build -j 8
     - A Python script to download the model weights for a TinyLlama model is provided in the `scripts/` directory
 2. Execute the compiled binary from the root directory, passing the model path, tokeniser path, and formatted prompt.
 
-Here is an example using the TinyLlama prompt format:
+Here is an example of how to run the inference engine:
 ```bash
-./build/llm_inference "./data/tinyllama_chat.bin" "./data/tokenizer.bin" $'<|system|>\nYou are a helpful and concise AI assistant.</s>\n<|user|>\nGive me a bulleted list of 5 fun indoor hobbies to try on a rainy day.</s>\n<|assistant|>\n'
+./build/llm_inference "./data/tinyllama_chat.bin" "./data/tokenizer.bin"
 ```
 
 ---
