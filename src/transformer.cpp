@@ -566,7 +566,7 @@ int generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
 
 int inference(int argc, char** argv, int &generated_tokens) {
     if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <model_file.bin> <tokenizer.bin> \"Prompt text\"" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <model_file.bin> <tokenizer.bin>" << std::endl;
         return 1;
     }
 
