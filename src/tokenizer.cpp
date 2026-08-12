@@ -279,19 +279,3 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
     tokens[best_right_pos] = -1;
     return true;
 }
-
-static void print_tokens(const std::vector<int>& tokens) {
-    std::cout << "Token IDs:";
-    for (int id : tokens) {
-        std::cout << ' ' << id;
-    }
-    std::cout << '\n';
-}
-
-static void print_pieces(const Tokenizer& tokenizer, const std::vector<int>& tokens) {
-    std::cout << "Pieces:\n";
-    for (int id : tokens) {
-        const Token& tok = tokenizer.token_at(id);
-        std::cout << "[" << id << "] \"" << tok.text << "\"\n";
-    }
-}
