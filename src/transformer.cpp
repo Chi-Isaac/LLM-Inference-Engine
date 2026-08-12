@@ -165,7 +165,6 @@ void compute_attention(const Model& model,
                        int curr_pos,
                        int layer_index) {
     int head_size = model.config.dim / model.config.n_heads;
-    int kv_dim = model.config.n_kv_heads * head_size;
     int queries_per_group = model.config.n_heads / model.config.n_kv_heads;
 
     for (int head = 0; head < model.config.n_heads; head++) {
