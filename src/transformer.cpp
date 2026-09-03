@@ -225,7 +225,7 @@ void apply_repetition_penalty(std::vector<float>& logits, const std::vector<int>
     int window_size = 64;
     int start_idx = std::max(0, static_cast<int>(history.size()) - window_size);
 
-    for (int i = start_idx; i < history.size(); i++) {
+    for (size_t i = static_cast<size_t>(start_idx); i < history.size(); i++) {
         int token_id = history[i];
         
         // Do not penalize EOS, BOS, or special ChatML tokens
