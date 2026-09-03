@@ -730,13 +730,20 @@ int run_benchmark(int argc, char** argv, const BenchmarkConfig& config) {
     }
 
     std::vector<double> tokens_per_second;
+    std::vector<double> ttft_seconds; // ttft = time to first token
+
     for (int iter = 0; iter < config.num_iterations; ++iter) {
         std::vector<int> history;
         // Start pos at end of prompt
         int pos = static_cast<int>(prompt_ids.size());
 
         // Prefill is not timed as part of generation
+        const auto t0_prefill = std::chrono::high_resolution_clock::now();
         int next_token = prefill(model, prompt_ids, history);
+        const auto t1_prefill = std::chrono::high_resolution_clock::now();
+        double ttft = std::chrono::duration_cast<std::chrono::microseconds>(t1_prefill - t0_prefill).count() / 1000000.0;
+        ttft_seconds.push_back(ttft);
+
         if (next_token == start_id || next_token == end_id) {
             continue;
         }
@@ -772,6 +779,15 @@ int run_benchmark(int argc, char** argv, const BenchmarkConfig& config) {
     std::cout << "  Results for Token Generation Only:\n";
     std::cout << "      Mean Tokens Per Second: " << mean << "\n";
     std::cout << "      Median Tokens Per Second: " << median << "\n";
+
+    double ttft_sum = std::accumulate(ttft_seconds.begin(), ttft_seconds.end(), 0.0);
+    double ttft_mean = ttft_sum / ttft_seconds.size();
+    std::sort(ttft_seconds.begin(), ttft_seconds.end());
+    double ttft_median = ttft_seconds[ttft_seconds.size() / 2];
+
+    std::cout << "  Results for Time to First Token (TTFT):\n";
+    std::cout << "      Mean Time to First Token (TTFT): " << ttft_mean << " seconds\n";
+    std::cout << "      Median Time to First Token (TTFT): " << ttft_median << " seconds\n";
 
     munmap(data, file_size);
     return 0;
