@@ -652,6 +652,30 @@ while (true) {
     return 0;
 }
 
+struct BenchmarkConfig {
+    bool enabled = false;
+    std::string prompt;
+    int num_tokens;
+    int num_iterations;
+}
+
+BenchmarkConfig parse_benchmark_args(int argc, char** argv) {
+    BenchmarkConfig config;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--benchmark") {
+            config.enabled = true;
+        } else if (arg == "--prompt" && i + 1 < argc) {
+            config.prompt = argv[++i];
+        } else if (arg == "--num_tokens" && i + 1 < argc) {
+            config.num_tokens = std::stoi(argv[++i]);
+        } else if (arg == "--num_iterations" && i + 1 < argc) {
+            config.num_iterations = std::stoi(argv[++i]);
+        }
+    }
+    return config;
+}
+
 int main(int argc, char** argv) {
     auto start = std::chrono::high_resolution_clock::now();
     int generated_tokens = 0;
