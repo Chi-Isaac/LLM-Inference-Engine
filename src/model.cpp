@@ -80,8 +80,10 @@ void load_model(Model *model, void *data, size_t file_size) {
     // The wcls matrix requires vocab_size * dim * sizeof(float) bytes
     size_t wcls_size = model->config.vocab_size * model->config.dim * sizeof(float);
     
+    bool has_seperate_wcls = !shared_weights && ptr_offset + wcls_size <= file_size;
+
     // Check if the file actually has enough space for the full matrix
-    if (!shared_weights) {
+    if (has_seperate_wcls) {
         model->weights.wcls = ptr;
     } else {
         // Tied weights: point wcls back to the start of the file
