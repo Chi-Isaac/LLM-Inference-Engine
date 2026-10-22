@@ -115,16 +115,12 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
 
     read_binary(input_file, max_token_length_);
 
-    while (true) {
+    while (input_file.peek() != std::char_traits<char>::eof()) {
         float score = 0.0f;
+        read_binary(input_file, score);
         std::int32_t len = 0;
-
-        input_file.read(reinterpret_cast<char*>(&score), sizeof(score));
-        if (!input_file) {
-            break;
-        }
-
         read_binary(input_file, len);
+        
         if (len < 0) {
             throw std::runtime_error("tokenizer: negative token length in input file");
         }
