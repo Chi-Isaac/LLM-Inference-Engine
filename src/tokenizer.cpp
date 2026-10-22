@@ -23,6 +23,13 @@ namespace {
     constexpr std::uint8_t UTF8_CONTINUATION_MASK = 0xC0; // 1100 0000
     constexpr std::uint8_t UTF8_CONTINUATION_PREFIX = 0x80; // 1000 0000
 
+    constexpr std::string_view BYTE_FALLBACK_TEMPLATE = "<0x00>";
+    constexpr int BYTE_FALLBACK_HIGH_POS = 3;
+    constexpr int BYTE_FALLBACK_LOW_POS = 4;
+    constexpr std::string_view HEX_DIGITS = "0123456789ABCDEF";
+    constexpr int NIBBLE_SIZE = 4; // 1 nibble = 4 bits
+    constexpr std::uint8_t BOTTOM_NIBBLE_MASK = 0xF; // To keep lowest hex digit
+
     /* Reads sizeof(T) raw bytes from input_file and copies them into the memory
        of value. */
 
@@ -36,11 +43,14 @@ namespace {
         }
     }
 
+    /* Returns the byte fallback token for a single byte.
+       For example, 0x4F returns "<0x4F>".
+       Used when a UTF-8 char has no token, so each byte is encoded as a 
+       fallback token. */
     std::string byte_fallback_token(unsigned char b) {
-        const char* hex = "0123456789ABCDEF";
-        std::string s = "<0x00>";
-        s[3] = hex[(b >> 4) & 0xF];
-        s[4] = hex[b & 0xF];
+        std::string s(BYTE_FALLBACK_TEMPLATE);
+        s[BYTE_FALLBACK_HIGH_POS] = HEX_DIGITS[(b >> NIBBLE_SIZE)];
+        s[BYTE_FALLBACK_LOW_POS] = HEX_DIGITS[b & BOTTOM_NIBBLE_MASK];
         return s;
     }
 
