@@ -281,6 +281,8 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
     size_t best_pos = 0;
     size_t best_right_pos = 0;
 
+    std::string merged;
+
     for (size_t i = 0; i + 1 < tokens.size(); ++i) {
         if (tokens[i] == -1) continue;
 
@@ -292,7 +294,9 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
             break;
         }
 
-        std::string merged = vocab_[tokens[i]].text + vocab_[tokens[right]].text;
+        merged.assign(vocab_[tokens[i]].text);
+        merged += vocab_[tokens[right]].text;
+
         auto id = find_token(merged);
         if (!id.has_value()) {
             continue;
