@@ -218,7 +218,7 @@ std::vector<int> Tokenizer::encode(const std::string& text) const {
             --num_cont_bytes;
         }
 
-        std::string piece = text.substr(start, i - start);
+        std::string_view piece = std::string_view(text).substr(start, i - start);
 
         // First try full UTF-8 chunk.
         if (auto id = find_token(piece); id.has_value()) {
