@@ -23,8 +23,13 @@ namespace {
     constexpr std::uint8_t UTF8_CONTINUATION_MASK = 0xC0; // 1100 0000
     constexpr std::uint8_t UTF8_CONTINUATION_PREFIX = 0x80; // 1000 0000
 
+    /* Reads sizeof(T) raw bytes from input_file and copies them into the memory
+       of value. */
+
     template <typename T>
     void read_binary(std::ifstream& input_file, T& value) {
+        static_assert(std::is_trivially_copyable_v<T>, 
+            "tokenizer: read_binary requires a trivially copyable type.");
         input_file.read(reinterpret_cast<char*>(&value), sizeof(T));
         if (!input_file) {
             throw std::runtime_error("tokenizer: failed to read binary data");
