@@ -120,8 +120,8 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
         read_binary(input_file, score);
         std::int32_t len = 0;
         read_binary(input_file, len);
-        
-        if (len < 0) {
+
+        if (len <= 0) {
             throw std::runtime_error("tokenizer: negative token length in input file");
         }
 
