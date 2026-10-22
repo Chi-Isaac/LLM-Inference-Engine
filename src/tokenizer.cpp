@@ -75,6 +75,20 @@ namespace {
                             BYTE_FALLBACK_PREFIX) == 0 &&
                text.back() == BYTE_FALLBACK_SUFFIX;
     }
+
+    /* Returns the number of bytes in the UTF-8 sequence that starts with a 
+       lead byte b. If b cannot be the start of a sequence, return 0. */
+    int utf8_sequence_length(unsigned char b) {
+        if ((b & UTF8_ASCII_MASK) == ASCII_PREFIX) return 1;
+        if ((b & UTF8_LEAD_2_BYTE_MASK) == UTF8_LEAD_2_BYTE_PREFIX) return 2;
+        if ((b & UTF8_LEAD_3_BYTE_MASK) == UTF8_LEAD_3_BYTE_PREFIX) return 3;
+        if ((b & UTF8_LEAD_4_BYTE_MASK) == UTF8_LEAD_4_BYTE_PREFIX) return 4;
+        return 0;
+    }
+
+    bool is_utf8_continuation(unsigned char b) {
+        return (b & UTF8_CONTINUATION_MASK) == UTF8_CONTINUATION_PREFIX;
+    }
 }
 
 bool Tokenizer::load_from_file(const std::string& file_path) {
