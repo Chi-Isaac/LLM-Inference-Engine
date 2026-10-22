@@ -272,10 +272,6 @@ void Tokenizer::insert_token(const std::string& text, int id) {
 }
 
 bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
-    if (tokens.size() < 2) {
-        return false;
-    }
-
     float best_score = -std::numeric_limits<float>::infinity();
     int best_id = NO_TOKEN_ID;
     size_t best_pos = 0;
