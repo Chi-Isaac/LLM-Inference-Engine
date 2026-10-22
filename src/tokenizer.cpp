@@ -198,9 +198,8 @@ std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& t
     return std::nullopt;
 }
 
-std::vector<int> Tokenizer::encode(const std::string& text) const {
-    std::vector<int> result;
-    result.push_back(START_ID); // BOS inserted here only
+std::vector<int> Tokenizer::encode(std::string_view text) const {
+    std::vector<int> tokens;
 
     size_t i = 0;
     while (i < text.size()) {
@@ -236,7 +235,7 @@ std::vector<int> Tokenizer::encode(const std::string& text) const {
 
         // First try full UTF-8 chunk.
         if (auto id = find_token(piece); id.has_value()) {
-            result.push_back(id.value());
+            tokens.push_back(id.value());
             continue;
         }
 
@@ -248,15 +247,18 @@ std::vector<int> Tokenizer::encode(const std::string& text) const {
             if (!byte_id.has_value()) {
                 throw std::runtime_error("tokenizer: no fallback token for piece: " + fallback);
             }
-            result.push_back(byte_id.value());
+            tokens.push_back(byte_id.value());
         }
     }
 
-    while (merge_best_pair(result)) {
+    while (merge_best_pair(tokens)) {
     }
 
-    result.erase(std::remove(result.begin(), result.end(), -1), result.end());
-    return result;
+    tokens.erase(std::remove(tokens.begin(), tokens.end(), -1), tokens.end());
+
+    // Insert BOS token after merge so BOS does not get merged.
+    tokens.insert(tokens.begin(), START_ID);
+    return tokens;
 }
 
 int Tokenizer::size() const {
