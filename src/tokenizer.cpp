@@ -126,11 +126,9 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
         }
 
         std::string text(static_cast<size_t>(len), '\0');
-        if (len > 0) {
-            input_file.read(&text[0], len);
-            if (!input_file) {
-                throw std::runtime_error("tokenizer: failed to read token bytes");
-            }
+        input_file.read(&text[0], len);
+        if (!input_file) {
+            throw std::runtime_error("tokenizer: failed to read token bytes");
         }
 
         vocab_.push_back(Token{std::move(text), static_cast<uint32_t>(len), score});
