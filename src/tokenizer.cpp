@@ -37,7 +37,7 @@ namespace {
 
     constexpr int HEX_DIGIT_OFFSET_VALUE = 10; // 'A' = 10
 
-    constexpr int NO_TOKEN_ID = -1 // No merge found yet
+    constexpr int NO_TOKEN_ID = -1; // No merge found yet
 
     /* Reads sizeof(T) raw bytes from input_file and copies them into the memory
        of value. */
