@@ -125,6 +125,7 @@ const Token& Tokenizer::token_at(int id) const {
     return vocab_[id];
 }
 
+// Converts token id back into text
 std::string Tokenizer::decode(int id) const {
     const std::string& text = token_at(id).text;
 
@@ -133,10 +134,10 @@ std::string Tokenizer::decode(int id) const {
     }
 
     if (is_byte_fallback_piece(text)) {
-        int hi = hex_value(text[3]);
-        int lo = hex_value(text[4]);
+        int hi = hex_value(text[BYTE_FALLBACK_HIGH_POS]);
+        int lo = hex_value(text[BYTE_FALLBACK_LOW_POS]);
         if (hi >= 0 && lo >= 0) {
-            char byte = static_cast<char>((hi << 4) | lo);
+            char byte = static_cast<char>((hi << NIBBLE_SIZE) | lo);
             return std::string(1, byte);
         }
     }
