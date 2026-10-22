@@ -20,8 +20,8 @@ namespace {
     constexpr std::uint8_t UTF8_LEAD_3_BYTE_PREFIX = 0xE0; // 1110 0000
     constexpr std::uint8_t UTF8_LEAD_4_BYTE_PREFIX = 0xF0; // 1111 0000
 
-    const std::uint8_t UTF8_CONTINUATION_MASK = 0xC0; // 1100 0000
-    const std::uint8_t UTF8_CONTINUATION_PREFIX = 0x80; // 1000 0000
+    constexpr std::uint8_t UTF8_CONTINUATION_MASK = 0xC0; // 1100 0000
+    constexpr std::uint8_t UTF8_CONTINUATION_PREFIX = 0x80; // 1000 0000
 
     template <typename T>
     void read_binary(std::ifstream& input_file, T& value) {
