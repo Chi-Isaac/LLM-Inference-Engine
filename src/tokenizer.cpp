@@ -213,16 +213,16 @@ std::vector<int> Tokenizer::encode(std::string_view text) const {
     size_t i = 0;
     while (i < text.size()) {
         size_t start = i;
-        const std::size_t len = utf8_sequence_length(static_cast<unsigned char>(text[start]));
-        if (len == 0) {
-            throw std::runtime_error("tokenizer: invalid UTF-8 start byte encountered");
-        }
-        if (start + len > text.size()) {
-            throw std::runtime_error("tokenizer: truncated UTF-8 sequence");
+        std::size_t len = utf8_sequence_length(static_cast<unsigned char>(text[start]));
+        /* When the UTF-8 is invalid, take one byte as a fallback byte.
+           Advance by one so next byte can be considered alone (may be a valid
+           character). */
+        if (len == 0 || start + len > text.size()) {
+            len = 1;
         }
         for (std::size_t j = 1; j < len; ++j) {
             if (!is_utf8_continuation(static_cast<unsigned char>(text[start + j]))) {
-                throw std::runtime_error("tokenizer: invalid UTF-8 continuation byte encountered");
+                len = 1;
             }
         }
         i = start + len;
