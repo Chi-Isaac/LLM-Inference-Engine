@@ -30,9 +30,9 @@ public:
     const Token& token_at(int id) const;
     std::string decode(int id) const;
 
-    std::optional<int> find_token(const std::string& text) const;
+    std::optional<int> find_token(std::string_view text) const;
     std::optional<std::pair<int, int>> longest_match(const std::string& text, int start) const;
-    std::vector<int> encode(const std::string& text) const;
+    std::vector<int> encode(std::string_view text) const;
 
     int size() const;
     int max_token_length() const;

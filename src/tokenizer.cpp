@@ -161,7 +161,7 @@ std::string Tokenizer::decode(int id) const {
     return text;
 }
 
-std::optional<int> Tokenizer::find_token(const std::string& text) const {
+std::optional<int> Tokenizer::find_token(std::string_view text) const {
     const TrieNode* curr = &root_;
     for (unsigned char c : text) {
         auto it = curr->children.find(static_cast<char>(c));
