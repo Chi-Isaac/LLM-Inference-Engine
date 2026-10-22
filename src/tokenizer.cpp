@@ -70,12 +70,22 @@ namespace {
         return -1;
     }
 
-    bool is_byte_fallback_piece(const std::string& text) {
-        return text.size() == BYTE_FALLBACK_LENGTH &&
-               text.compare(0, 
-                            BYTE_FALLBACK_PREFIX.size(), 
-                            BYTE_FALLBACK_PREFIX) == 0 &&
-               text.back() == BYTE_FALLBACK_SUFFIX;
+    /* Return byte encoded by a byte fallback token.
+       For example, "<0x1F>" returns 0x1F.
+       Returns nullopt if the text is not a valid byte fallback token. */
+    std::optional<unsigned char> byte_fallback_parser(const std::string& text) {
+        if (text.size() != BYTE_FALLBACK_LENGTH ||
+            text.substr(0, BYTE_FALLBACK_PREFIX.size()) != BYTE_FALLBACK_PREFIX ||
+            text.back() != BYTE_FALLBACK_SUFFIX) {
+            return std::nullopt;
+        }
+
+        int hi = hex_value(text[BYTE_FALLBACK_HIGH_POS]);
+        int lo = hex_value(text[BYTE_FALLBACK_LOW_POS]);
+        if (hi < 0 || lo < 0) {
+            return std::nullopt;
+        }
+        return static_cast<unsigned char>((hi << NIBBLE_SIZE) | lo);
     }
 
     /* Returns the number of bytes in the UTF-8 sequence that starts with a 
@@ -149,13 +159,8 @@ std::string Tokenizer::decode(int id) const {
         return "";
     }
 
-    if (is_byte_fallback_piece(text)) {
-        int hi = hex_value(text[BYTE_FALLBACK_HIGH_POS]);
-        int lo = hex_value(text[BYTE_FALLBACK_LOW_POS]);
-        if (hi >= 0 && lo >= 0) {
-            char byte = static_cast<char>((hi << NIBBLE_SIZE) | lo);
-            return std::string(1, byte);
-        }
+    if (auto byte = parse_byte_fallback(text)) {
+        return std::string(1, static_cast<char>(*byte));
     }
 
     return text;
