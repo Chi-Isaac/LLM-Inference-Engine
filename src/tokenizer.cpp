@@ -159,7 +159,7 @@ std::string Tokenizer::decode(int id) const {
         return "";
     }
 
-    if (auto byte = parse_byte_fallback(text)) {
+    if (auto byte = byte_fallback_parser(text)) {
         return std::string(1, static_cast<char>(*byte));
     }
 
