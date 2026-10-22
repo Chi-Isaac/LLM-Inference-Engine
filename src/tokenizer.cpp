@@ -1,4 +1,5 @@
 #include "tokenizer.hpp"
+#include <cstddef>
 #include <cstdint>
 #include <fstream>
 #include <stdexcept>
@@ -24,8 +25,12 @@ namespace {
     constexpr std::uint8_t UTF8_CONTINUATION_PREFIX = 0x80; // 1000 0000
 
     constexpr std::string_view BYTE_FALLBACK_TEMPLATE = "<0x00>";
-    constexpr int BYTE_FALLBACK_HIGH_POS = 3;
-    constexpr int BYTE_FALLBACK_LOW_POS = 4;
+    constexpr std::string_view BYTE_FALLBACK_PREFIX = "<0x";
+    constexpr char BYTE_FALLBACK_SUFFIX = '>';
+    
+    constexpr int BYTE_FALLBACK_LENGTH = BYTE_FALLBACK_TEMPLATE.size();
+    constexpr std::size_t BYTE_FALLBACK_HIGH_POS = BYTE_FALLBACK_PREFIX.size();
+    constexpr std::size_t BYTE_FALLBACK_LOW_POS = BYTE_FALLBACK_HIGH_POS + 1;
     constexpr std::string_view HEX_DIGITS = "0123456789ABCDEF";
     constexpr int NIBBLE_SIZE = 4; // 1 nibble = 4 bits
     constexpr std::uint8_t BOTTOM_NIBBLE_MASK = 0xF; // To keep lowest hex digit
@@ -64,11 +69,11 @@ namespace {
     }
 
     bool is_byte_fallback_piece(const std::string& text) {
-        return text.size() == 6 &&
-               text[0] == '<' &&
-               text[1] == '0' &&
-               text[2] == 'x' &&
-               text[5] == '>';
+        return text.size() == BYTE_FALLBACK_LENGTH &&
+               text.compare(0, 
+                            BYTE_FALLBACK_PREFIX.size(), 
+                            BYTE_FALLBACK_PREFIX) == 0 &&
+               text.back() == BYTE_FALLBACK_SUFFIX;
     }
 }
 
