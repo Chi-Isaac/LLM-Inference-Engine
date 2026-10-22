@@ -93,7 +93,7 @@ const Token& Tokenizer::token_at(int id) const {
 std::string Tokenizer::decode(int id) const {
     const std::string& text = token_at(id).text;
 
-    if (id == start_id || id == end_id) {
+    if (id == START_ID || id == END_ID) {
         return "";
     }
 
@@ -150,7 +150,7 @@ std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& t
 
 std::vector<int> Tokenizer::encode(const std::string& text) const {
     std::vector<int> result;
-    result.push_back(start_id); // BOS inserted here only
+    result.push_back(START_ID); // BOS inserted here only
 
     size_t i = 0;
     while (i < text.size()) {

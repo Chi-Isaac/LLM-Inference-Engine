@@ -525,7 +525,7 @@ int forward(Model& model, int token_id, int current_position, const std::vector<
     
     std::vector<float> logits(model.config.vocab_size);
     mult_matrix(logits, x, model.weights.wcls, model.config.vocab_size, dim);
-    // logits[start_id] = -1e30f;   // forbid BOS during generation
+    // logits[START_ID] = -1e30f;   // forbid BOS during generation
     apply_repetition_penalty(logits, history, 1.05f);
     
 
@@ -542,7 +542,7 @@ int generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
     int prompt_len = prompt_tokens.size(); 
     std::vector<int> history;
     int next_token = prefill(*model, prompt_tokens, history);
-    if (next_token == start_id || next_token == end_id) return generated_tokens;
+    if (next_token == START_ID || next_token == END_ID) return generated_tokens;
     std::cout << tokenizer->decode(next_token) << std::flush;
     generated_tokens++;
     
@@ -553,7 +553,7 @@ int generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
         
         next_token = predicted;
         
-        if (next_token == start_id || next_token == end_id) break; 
+        if (next_token == START_ID || next_token == END_ID) break; 
         
         std::string word = tokenizer->decode(next_token);
         std::cout << word << std::flush;
