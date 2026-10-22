@@ -37,6 +37,8 @@ namespace {
 
     constexpr int HEX_DIGIT_OFFSET_VALUE = 10; // 'A' = 10
 
+    constexpr int NO_TOKEN_ID = -1 // No merge found yet
+
     /* Reads sizeof(T) raw bytes from input_file and copies them into the memory
        of value. */
 
@@ -275,10 +277,9 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
     }
 
     float best_score = -std::numeric_limits<float>::infinity();
-    int best_id = -1;
+    int best_id = NO_TOKEN_ID;
     size_t best_pos = 0;
     size_t best_right_pos = 0;
-    bool found = false;
 
     for (size_t i = 0; i + 1 < tokens.size(); ++i) {
         if (tokens[i] == -1) continue;
@@ -298,8 +299,7 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
         }
 
         float score = vocab_[id.value()].score;
-        if (!found || score > best_score) {
-            found = true;
+        if (best_id == NO_TOKEN_ID || score > best_score) {
             best_score = score;
             best_id = id.value();
             best_pos = i;
@@ -307,7 +307,7 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
         }
     }
 
-    if (!found) {
+    if (best_id == NO_TOKEN_ID) {
         return false;
     }
 
