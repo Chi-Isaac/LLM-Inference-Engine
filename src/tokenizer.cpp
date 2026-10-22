@@ -30,6 +30,8 @@ namespace {
     constexpr int NIBBLE_SIZE = 4; // 1 nibble = 4 bits
     constexpr std::uint8_t BOTTOM_NIBBLE_MASK = 0xF; // To keep lowest hex digit
 
+    constexpr int HEX_DIGIT_OFFSET_VALUE = 10; // 'A' = 10
+
     /* Reads sizeof(T) raw bytes from input_file and copies them into the memory
        of value. */
 
@@ -56,8 +58,8 @@ namespace {
 
     int hex_value(char c) {
         if (c >= '0' && c <= '9') return c - '0';
-        if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
-        if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+        if (c >= 'A' && c <= 'F') return HEX_DIGIT_OFFSET_VALUE + (c - 'A');
+        if (c >= 'a' && c <= 'f') return HEX_DIGIT_OFFSET_VALUE + (c - 'a');
         return -1;
     }
 
