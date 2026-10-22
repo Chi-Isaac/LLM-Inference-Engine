@@ -200,54 +200,42 @@ std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& t
 
 std::vector<int> Tokenizer::encode(std::string_view text) const {
     std::vector<int> tokens;
+    // Reserve to save allocations later. +1 for BOS later.
+    tokens.reserve(text.size() + 1);
 
     size_t i = 0;
     while (i < text.size()) {
         size_t start = i;
-        unsigned char b = static_cast<unsigned char>(text[i++]);
-
-        int num_cont_bytes = 0;
-        if ((b & UTF8_ASCII_MASK) == ASCII_PREFIX) {
-            num_cont_bytes = 0;
-        } else if ((b & UTF8_LEAD_2_BYTE_MASK) == UTF8_LEAD_2_BYTE_PREFIX) {
-            num_cont_bytes = 1;
-        } else if ((b & UTF8_LEAD_3_BYTE_MASK) == UTF8_LEAD_3_BYTE_PREFIX) {
-            num_cont_bytes = 2;
-        } else if ((b & UTF8_LEAD_4_BYTE_MASK) == UTF8_LEAD_4_BYTE_PREFIX) {
-            num_cont_bytes = 3;
-        } else {
+        const std::size_t len = utf8_sequence_length(static_cast<unsigned char>(text[start]));
+        if (len == 0) {
             throw std::runtime_error("tokenizer: invalid UTF-8 start byte encountered");
         }
-
-        while (num_cont_bytes > 0) {
-            if (i >= text.size()) {
-                throw std::runtime_error("tokenizer: truncated UTF-8 sequence");
-            }
-            unsigned char c = static_cast<unsigned char>(text[i]);
-            if ((c & UTF8_CONTINUATION_MASK) != UTF8_CONTINUATION_PREFIX) {
+        if (start + len > text.size()) {
+            throw std::runtime_error("tokenizer: truncated UTF-8 sequence");
+        }
+        for (std::size_t j = 1; j < len; ++j) {
+            if (!is_utf8_continuation(static_cast<unsigned char>(text[start + j]))) {
                 throw std::runtime_error("tokenizer: invalid UTF-8 continuation byte encountered");
             }
-            ++i;
-            --num_cont_bytes;
         }
+        i = start + len;
 
-        std::string_view piece = std::string_view(text).substr(start, i - start);
+        std::string_view piece = text.substr(start, i - start);
 
         // First try full UTF-8 chunk.
         if (auto id = find_token(piece); id.has_value()) {
-            tokens.push_back(id.value());
+            tokens.push_back(*id);
             continue;
         }
 
         // Otherwise byte-fallback as <0xNN> pieces.
-        for (size_t j = start; j < i; ++j) {
-            unsigned char byte = static_cast<unsigned char>(text[j]);
+        for (unsigned char byte : piece) {
             std::string fallback = byte_fallback_token(byte);
             auto byte_id = find_token(fallback);
-            if (!byte_id.has_value()) {
+            if (!byte_id) {
                 throw std::runtime_error("tokenizer: no fallback token for piece: " + fallback);
             }
-            tokens.push_back(byte_id.value());
+            tokens.push_back(*byte_id);
         }
     }
 
