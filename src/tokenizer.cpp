@@ -244,8 +244,6 @@ std::vector<int> Tokenizer::encode(std::string_view text) const {
     while (merge_best_pair(tokens)) {
     }
 
-    tokens.erase(std::remove(tokens.begin(), tokens.end(), -1), tokens.end());
-
     // Insert BOS token after merge so BOS does not get merged.
     tokens.insert(tokens.begin(), START_ID);
     return tokens;
@@ -275,23 +273,13 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
     float best_score = -std::numeric_limits<float>::infinity();
     int best_id = NO_TOKEN_ID;
     size_t best_pos = 0;
-    size_t best_right_pos = 0;
 
+    // Avoid reallocation by reusing buffer
     std::string merged;
 
     for (size_t i = 0; i + 1 < tokens.size(); ++i) {
-        if (tokens[i] == -1) continue;
-
-        size_t right = i + 1;
-        while (right < tokens.size() && tokens[right] == -1) {
-            ++right;
-        }
-        if (right >= tokens.size()) {
-            break;
-        }
-
         merged.assign(vocab_[tokens[i]].text);
-        merged += vocab_[tokens[right]].text;
+        merged += vocab_[tokens[i + 1]].text;
 
         auto id = find_token(merged);
         if (!id.has_value()) {
@@ -303,7 +291,6 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
             best_score = score;
             best_id = id.value();
             best_pos = i;
-            best_right_pos = right;
         }
     }
 
@@ -312,6 +299,7 @@ bool Tokenizer::merge_best_pair(std::vector<int>& tokens) const {
     }
 
     tokens[best_pos] = best_id;
-    tokens[best_right_pos] = -1;
+    // Remove token that got merged into best_pos position
+    tokens.erase(tokens.begin() + best_pos + 1);
     return true;
 }
