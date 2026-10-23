@@ -657,15 +657,153 @@ while (true) {
     return 0;
 }
 
+struct BenchmarkConfig {
+    bool enabled = false;
+    std::string prompt;
+    int num_tokens;
+    int num_iterations;
+};
+
+BenchmarkConfig parse_benchmark_args(int argc, char** argv) {
+    BenchmarkConfig config;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--benchmark") {
+            config.enabled = true;
+        } else if (arg == "--prompt" && i + 1 < argc) {
+            config.prompt = argv[++i];
+        } else if (arg == "--num_tokens" && i + 1 < argc) {
+            config.num_tokens = std::stoi(argv[++i]);
+        } else if (arg == "--num_iterations" && i + 1 < argc) {
+            config.num_iterations = std::stoi(argv[++i]);
+        }
+    }
+    return config;
+}
+
+int run_benchmark(int argc, char** argv, const BenchmarkConfig& config) {
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0]
+                  << "<model_file.bin> <tokenizer.bin> --benchmark "
+                  << "--prompt \"...\" --num_tokens <N> --num_iterations <R>\n";
+        return 1;
+    }
+
+    const char* model_path = argv[1];
+    const char* tokenizer_path = argv[2];
+
+    int fd = open(model_path, O_RDONLY);
+    if (fd < 0) {
+        std::cerr << "Error: Could not open model file " << model_path << std::endl;
+        return 1;
+    }
+
+    struct stat sb;
+    if (fstat(fd, &sb) == -1) {
+        std::cerr << "Error: Could not stat model file" << std::endl;
+        close(fd);
+        return 1;
+    }
+    size_t file_size = sb.st_size;
+    
+    void *data = mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (data == MAP_FAILED) {
+        std::cerr << "Error: mmap failed" << std::endl;
+        close(fd);
+        return 1;
+    }
+    close(fd);
+
+    Model model;
+    
+    std::cout << "Loading model..." << std::endl;
+    load_model(&model, data, file_size);
+
+    Tokenizer tokenizer;
+    std::cout << "\nLoading tokenizer..." << std::endl;
+    if (!tokenizer.load_from_file(tokenizer_path)) {
+        std::cerr << "Error: Failed to load tokenizer from " << tokenizer_path << std::endl;
+        munmap(data, file_size);
+        return 1;
+    }
+
+    std::vector<int> prompt_ids = tokenizer.encode(config.prompt);
+    if (prompt_ids.empty()) {
+        std::cerr << "Error: Prompt could not be tokenized." << std::endl;
+        munmap(data, file_size);
+        return 1;
+    }
+
+    std::vector<double> tokens_per_second;
+    std::vector<double> ttft_seconds; // ttft = time to first token
+
+    for (int iter = 0; iter < config.num_iterations; ++iter) {
+        std::vector<int> history;
+        // Start pos at end of prompt
+        int pos = static_cast<int>(prompt_ids.size());
+
+        // Prefill is not timed as part of generation
+        const auto t0_prefill = std::chrono::high_resolution_clock::now();
+        int next_token = prefill(model, prompt_ids, history);
+        const auto t1_prefill = std::chrono::high_resolution_clock::now();
+        double ttft = std::chrono::duration_cast<std::chrono::microseconds>(t1_prefill - t0_prefill).count() / 1000000.0;
+        ttft_seconds.push_back(ttft);
+
+        if (next_token == start_id || next_token == end_id) {
+            continue;
+        }
+
+        // Timed generation loop
+        const auto t0 = std::chrono::high_resolution_clock::now();
+
+        int generated = 0;
+        for (; pos < model.config.seq_len && generated < config.num_tokens; ++pos) {
+            history.push_back(next_token);
+            int predicted = forward(model, next_token, pos, history);
+            next_token = predicted;
+            if (next_token == start_id || next_token == end_id) break;
+            ++generated;
+        }
+
+        const auto t1 = std::chrono::high_resolution_clock::now();
+        double seconds = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count() / 1000000.0;
+        tokens_per_second.push_back(generated / seconds);
+    }
+
+    double sum = std::accumulate(tokens_per_second.begin(), tokens_per_second.end(), 0.0);
+    double mean = sum / tokens_per_second.size();
+
+    std::sort(tokens_per_second.begin(), tokens_per_second.end());
+    double median = tokens_per_second[tokens_per_second.size() / 2];
+
+    std::cout << "\n--- Benchmark Results ---\n";
+    std::cout << "  Prompt: " << config.prompt << "\n";
+    std::cout << "  Prompt Tokens: " << prompt_ids.size() << "\n";
+    std::cout << "  Generated Tokens Per Iteration: " << config.num_tokens << "\n";
+    std::cout << "  Iterations: " << config.num_iterations << "\n";
+    std::cout << "  Results for Token Generation Only:\n";
+    std::cout << "      Mean Tokens Per Second: " << mean << "\n";
+    std::cout << "      Median Tokens Per Second: " << median << "\n";
+
+    double ttft_sum = std::accumulate(ttft_seconds.begin(), ttft_seconds.end(), 0.0);
+    double ttft_mean = ttft_sum / ttft_seconds.size();
+    std::sort(ttft_seconds.begin(), ttft_seconds.end());
+    double ttft_median = ttft_seconds[ttft_seconds.size() / 2];
+
+    std::cout << "  Results for Time to First Token (TTFT):\n";
+    std::cout << "      Mean Time to First Token (TTFT): " << ttft_mean << " seconds\n";
+    std::cout << "      Median Time to First Token (TTFT): " << ttft_median << " seconds\n";
+
+    munmap(data, file_size);
+    return 0;
+}
+
 int main(int argc, char** argv) {
-    auto start = std::chrono::high_resolution_clock::now();
+    BenchmarkConfig benchmark_config = parse_benchmark_args(argc, argv);
+    if (benchmark_config.enabled) {
+        return run_benchmark(argc, argv, benchmark_config);
+    }
+
     int generated_tokens = 0;
-    int exit_status = inference(argc, argv, generated_tokens);
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> elapsed = end - start;
-    std::cout << "\n--- Summary ---\n";
-    std::cout << "Total Time (ms): " << elapsed.count() << "\n";
-    std::cout << "Number of Tokens Generated: " << generated_tokens << "\n";
-    std::cout << "Avg Time per Token (ms): " << (generated_tokens ? elapsed.count() / generated_tokens : 0) << "\n";
-    return exit_status;
+    return inference(argc, argv, generated_tokens);
 }
