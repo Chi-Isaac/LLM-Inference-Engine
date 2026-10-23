@@ -543,11 +543,12 @@ int generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
     std::vector<int> history;
     int next_token = prefill(*model, prompt_tokens, history);
     if (next_token == START_ID || next_token == END_ID) return generated_tokens;
-    std::cout << tokenizer->decode(next_token) << std::flush;
+    std::cout << tokenizer->decode(prompt_tokens.back(), next_token) << std::flush;
     generated_tokens++;
     
     for (int pos = prompt_len; pos < model->config.seq_len; pos++) {
         history.push_back(next_token);
+        int prev_token = next_token;
         
         int predicted = forward(*model, next_token, pos, history);
         
@@ -555,7 +556,7 @@ int generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
         
         if (next_token == START_ID || next_token == END_ID) break; 
         
-        std::string word = tokenizer->decode(next_token);
+        std::string word = tokenizer->decode(prev_token, next_token);
         std::cout << word << std::flush;
         generated_tokens++;
     }

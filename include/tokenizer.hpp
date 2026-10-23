@@ -28,11 +28,11 @@ public:
     bool load_from_file(const std::string& file_path);
 
     const Token& token_at(int id) const;
-    std::string decode(int id) const;
+    std::string decode(int prev_id, int id) const;
 
     std::optional<int> find_token(std::string_view text) const;
     std::optional<std::pair<int, int>> longest_match(const std::string& text, int start) const;
-    std::vector<int> encode(std::string_view text) const;
+    std::vector<int> encode(std::string_view text, bool add_bos = true, bool add_eos = false) const;
 
     int size() const;
     int max_token_length() const;

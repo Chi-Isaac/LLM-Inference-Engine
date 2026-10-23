@@ -146,7 +146,7 @@ const Token& Tokenizer::token_at(int id) const {
 }
 
 // Converts token id back into text
-std::string Tokenizer::decode(int id) const {
+std::string Tokenizer::decode(int prev_id, int id) const {
     const std::string& text = token_at(id).text;
 
     if (id == START_ID || id == END_ID) {
@@ -155,6 +155,12 @@ std::string Tokenizer::decode(int id) const {
 
     if (auto byte = byte_fallback_parser(text)) {
         return std::string(1, static_cast<char>(*byte));
+    }
+
+    /* Since Llama model trained with tokens having leading spaces, we need to
+       undo the leading space from encode in the first token after BOS. */
+    if (prev_id == START_ID && !text.empty() && text.front() == ' ') {
+        return text.substr(1);
     }
 
     return text;
@@ -199,10 +205,15 @@ std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& t
     return std::nullopt;
 }
 
-std::vector<int> Tokenizer::encode(std::string_view text) const {
+// Defaults to true add_bos and false add_eos to exhibit old behaviour
+std::vector<int> Tokenizer::encode(std::string_view text, bool add_bos, bool add_eos) const {
     std::vector<int> tokens;
-    // Reserve to save allocations later. +1 for BOS later.
-    tokens.reserve(text.size() + 1);
+    // Reserve to save allocations later. +2 for BOS and EOS.
+    tokens.reserve(text.size() + 2);
+
+    if (!text.empty()) {
+        tokens.push_back(find_token(" ").value());
+    }
 
     size_t i = 0;
     while (i < text.size()) {
@@ -243,8 +254,9 @@ std::vector<int> Tokenizer::encode(std::string_view text) const {
     while (merge_best_pair(tokens)) {
     }
 
-    // Insert BOS token after merge so BOS does not get merged.
-    tokens.insert(tokens.begin(), START_ID);
+    // Insert BOS and EOS after merging so not involved in merge step.
+    if (add_bos) tokens.insert(tokens.begin(), START_ID);
+    if (add_eos) tokens.push_back(END_ID);
     return tokens;
 }
 
