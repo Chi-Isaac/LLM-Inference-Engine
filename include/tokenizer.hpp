@@ -18,12 +18,6 @@ struct Token {
     float score;
 };
 
-struct TrieNode {
-    // Children nodes stored in hashmap
-    std::unordered_map<char, std::unique_ptr<TrieNode>> children;
-    std::optional<int> token_id;
-};
-
 class Tokenizer {
 public:
     bool load_from_file(const std::string& file_path);
@@ -39,6 +33,12 @@ public:
     int max_token_length() const;
 
 private:
+    struct TrieNode {
+        // Children nodes stored in hashmap
+        std::unordered_map<char, std::unique_ptr<TrieNode>> children;
+        std::optional<int> token_id;
+    };
+
     int max_token_length_ = 0;
     std::vector<Token> vocab_;
     TrieNode root_;
