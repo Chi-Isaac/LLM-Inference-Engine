@@ -534,10 +534,8 @@ int forward(Model& model, int token_id, int current_position, const std::vector<
     return id;    
 }
 
-int generate(Model* model, Tokenizer* tokenizer, const std::string& prompt) {
+int generate(Model* model, Tokenizer* tokenizer, const std::vector<int>& prompt_tokens) {
     int generated_tokens = 0;
-
-    std::vector<int> prompt_tokens = tokenizer->encode(prompt);
     
     int prompt_len = prompt_tokens.size(); 
     std::vector<int> history;
@@ -638,12 +636,18 @@ while (true) {
     if (userInput.empty()) {
         continue;
     }
-    userInput = "<|system|>\n" + configuration + "</s>\n<|user|>\n" + userInput + "</s>\n<|assistant|>\n";
+
+    std::vector<int> prompt_ids = tokenizer.encode("<|system|>\n" + configuration, true, true);
+    std::vector<int> user_ids = tokenizer.encode("\n<|user|>\n" + userInput, false, true);
+    std::vector<int> assistant_ids = tokenizer.encode("\n<|assistant|>\n", false, false);
+    prompt_ids.insert(prompt_ids.end(), user_ids.begin(), user_ids.end());
+    prompt_ids.insert(prompt_ids.end(), assistant_ids.begin(), assistant_ids.end());
+
     // Add a label so you know the model is speaking
     std::cout << "TinyLlama: ";
     
     // This function should now print tokens with std::flush
-    generated_tokens = generate(&model, &tokenizer, userInput);
+    generated_tokens = generate(&model, &tokenizer, prompt_ids);
     
     // Print a newline after generation is completely finished
     // This separates the response from the next User prompt
