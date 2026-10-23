@@ -27,6 +27,7 @@ void build_rpe_cache(Model* model) {
         }
     }
 }
+
 void load_model(Model *model, void *data, size_t file_size) {
     memcpy(&model->config, data, sizeof(struct Config));
     float *ptr = (float *)((char *)data + sizeof(struct Config));
