@@ -2,13 +2,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
-#include <stdexcept>
-#include <utility>
 #include <limits>
-#include <algorithm>
-#include <iostream>
-#include <string>
 #include <optional>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
 
 namespace {
     constexpr std::uint8_t UTF8_ASCII_MASK = 0x80; // 1000 0000
