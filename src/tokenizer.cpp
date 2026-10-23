@@ -122,7 +122,7 @@ bool Tokenizer::load_from_file(const std::string& file_path) {
         read_binary(input_file, len);
 
         if (len <= 0) {
-            throw std::runtime_error("tokenizer: negative token length in input file");
+            throw std::runtime_error("tokenizer: non-positive token length in input file");
         }
 
         std::string text(static_cast<size_t>(len), '\0');
