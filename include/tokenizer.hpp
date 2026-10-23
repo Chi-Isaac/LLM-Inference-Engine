@@ -9,8 +9,8 @@
 #include <utility>
 #include <vector>
 
-const int START_ID = 1;
-const int END_ID = 2;
+inline constexpr int START_ID = 1;
+inline constexpr int END_ID = 2;
 
 struct Token {
     std::string text;
