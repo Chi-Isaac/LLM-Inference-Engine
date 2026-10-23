@@ -73,7 +73,7 @@ namespace {
     /* Return byte encoded by a byte fallback token.
        For example, "<0x1F>" returns 0x1F.
        Returns nullopt if the text is not a valid byte fallback token. */
-    std::optional<unsigned char> byte_fallback_parser(const std::string& text) {
+    std::optional<unsigned char> byte_fallback_parser(std::string_view text) {
         if (text.size() != BYTE_FALLBACK_LENGTH ||
             text.substr(0, BYTE_FALLBACK_PREFIX.size()) != BYTE_FALLBACK_PREFIX ||
             text.back() != BYTE_FALLBACK_SUFFIX) {
