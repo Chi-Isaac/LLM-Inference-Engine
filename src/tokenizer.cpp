@@ -28,7 +28,7 @@ namespace {
     constexpr std::string_view BYTE_FALLBACK_PREFIX = "<0x";
     constexpr char BYTE_FALLBACK_SUFFIX = '>';
     
-    constexpr int BYTE_FALLBACK_LENGTH = BYTE_FALLBACK_TEMPLATE.size();
+    constexpr std::size_t BYTE_FALLBACK_LENGTH = BYTE_FALLBACK_TEMPLATE.size();
     constexpr std::size_t BYTE_FALLBACK_HIGH_POS = BYTE_FALLBACK_PREFIX.size();
     constexpr std::size_t BYTE_FALLBACK_LOW_POS = BYTE_FALLBACK_HIGH_POS + 1;
     constexpr std::string_view HEX_DIGITS = "0123456789ABCDEF";
