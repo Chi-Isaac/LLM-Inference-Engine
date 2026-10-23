@@ -749,7 +749,7 @@ int run_benchmark(int argc, char** argv, const BenchmarkConfig& config) {
         double ttft = std::chrono::duration_cast<std::chrono::microseconds>(t1_prefill - t0_prefill).count() / 1000000.0;
         ttft_seconds.push_back(ttft);
 
-        if (next_token == start_id || next_token == end_id) {
+        if (next_token == START_ID || next_token == END_ID) {
             continue;
         }
 
@@ -761,7 +761,7 @@ int run_benchmark(int argc, char** argv, const BenchmarkConfig& config) {
             history.push_back(next_token);
             int predicted = forward(model, next_token, pos, history);
             next_token = predicted;
-            if (next_token == start_id || next_token == end_id) break;
+            if (next_token == START_ID || next_token == END_ID) break;
             ++generated;
         }
 
