@@ -181,30 +181,6 @@ std::optional<int> Tokenizer::find_token(std::string_view text) const {
     return std::nullopt;
 }
 
-std::optional<std::pair<int, int>> Tokenizer::longest_match(const std::string& text, int start) const {
-    const TrieNode* curr = &root_;
-    std::optional<int> last_token_id;
-    int last_token_length = 0;
-
-    for (size_t i = static_cast<size_t>(start); i < text.size(); ++i) {
-        unsigned char c = static_cast<unsigned char>(text[i]);
-        auto it = curr->children.find(static_cast<char>(c));
-        if (it == curr->children.end()) {
-            break;
-        }
-        curr = it->second.get();
-        if (curr->token_id.has_value()) {
-            last_token_id = curr->token_id;
-            last_token_length = static_cast<int>(i - static_cast<size_t>(start) + 1);
-        }
-    }
-
-    if (last_token_id.has_value()) {
-        return std::make_pair(last_token_id.value(), last_token_length);
-    }
-    return std::nullopt;
-}
-
 // Defaults to true add_bos and false add_eos to exhibit old behaviour
 std::vector<int> Tokenizer::encode(std::string_view text, bool add_bos, bool add_eos) const {
     std::vector<int> tokens;
