@@ -1,12 +1,13 @@
 #pragma once
 
-#include <cstddef>
-#include <string>
-#include <vector>
 #include <cstdint>
-#include <optional>
-#include <unordered_map>
 #include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 const int START_ID = 1;
 const int END_ID = 2;
@@ -44,5 +45,4 @@ private:
 
     void insert_token(const std::string& text, int id);
     bool merge_best_pair(std::vector<int>& tokens) const;
-}
-;
+};
